@@ -35,31 +35,56 @@ public class ArmLi extends ArmInstruction {
     @Override
     public String toString() {
         if (getOperands().get(0) instanceof ArmLabel) {
-            return "movw" + ArmTools.getCondString(condType) + "\t" + getDefReg() + ",\t" + ((ArmLabel) getOperands().get(0)).lo() + "\n\t" +
-                    "movt\t" + getDefReg() + ",\t" + ((ArmLabel) getOperands().get(0)).hi();
+            // ARMv8-A: Use adrp/add for label addresses
+            return "adrp\t" + getDefReg() + ",\t" + getOperands().get(0) + "\n\t" +
+                    "add\t" + getDefReg() + ",\t" + getDefReg() + ",\t:lo12:" + getOperands().get(0);
 
         } else {
             assert getOperands().get(0) instanceof ArmImm;
             ArmImm imm = (ArmImm) getOperands().get(0);
-            if (ArmTools.isArmImmCanBeEncoded(imm.getValue())) {
+            long value = imm.getValue();
+            
+            // For small immediates that can be encoded directly
+            if (value >= 0 && value <= 0xFFF) {
                 return "mov" + ArmTools.getCondString(condType) + "\t"
-                        + getDefReg() + ",\t#" + imm.getValue();
-            } else if (ArmTools.isArmImmCanBeEncoded(~(imm).getValue())) {
-                int oppo = ~imm.getValue();
-                return "mvn" + ArmTools.getCondString(condType) + "\t"
-                        + getDefReg() + ",\t#" + oppo;
+                        + getDefReg() + ",\t#" + value;
+            } else if (value < 0 && value >= -0xFFF) {
+                return "mov" + ArmTools.getCondString(condType) + "\t"
+                        + getDefReg() + ",\t#" + value;
             } else {
-                int highBits = (imm.getValue() >>> 16) & 0xffff;
-                int lowBits = (imm.getValue()) & 0xffff;
-                String res_str = "";
-                res_str = res_str + "movw" + ArmTools.getCondString(condType) + "\t"
-                        + getDefReg() + ",\t#" + lowBits + "\n";
-                if(highBits != 0) {
-                    res_str = res_str + "\t" +
-                    "movt" + ArmTools.getCondString(condType) + "\t"
-                            + getDefReg() + ",\t#" + highBits;
+                // ARMv8-A: Use mov/movk for large immediates
+                StringBuilder result = new StringBuilder();
+                
+                // Load lower 16 bits
+                int lowerBits = (int)(value & 0xFFFF);
+                result.append("mov").append(ArmTools.getCondString(condType))
+                      .append("\t").append(getDefReg()).append(",\t#").append(lowerBits);
+                
+                // Load upper bits if needed
+                if ((value >>> 16) != 0) {
+                    int upperBits = (int)((value >>> 16) & 0xFFFF);
+                    if (upperBits != 0) {
+                        result.append("\n\tmovk\t").append(getDefReg())
+                              .append(",\t#").append(upperBits).append(", lsl #16");
+                    }
                 }
-                return res_str;
+                
+                // For 64-bit values, handle higher bits
+                if ((value >>> 32) != 0) {
+                    int bits32_47 = (int)((value >>> 32) & 0xFFFF);
+                    if (bits32_47 != 0) {
+                        result.append("\n\tmovk\t").append(getDefReg())
+                              .append(",\t#").append(bits32_47).append(", lsl #32");
+                    }
+                    
+                    int bits48_63 = (int)((value >>> 48) & 0xFFFF);
+                    if (bits48_63 != 0) {
+                        result.append("\n\tmovk\t").append(getDefReg())
+                              .append(",\t#").append(bits48_63).append(", lsl #48");
+                    }
+                }
+                
+                return result.toString();
             }
         }
     }

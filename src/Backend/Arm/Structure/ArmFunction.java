@@ -51,8 +51,11 @@ public class ArmFunction extends ArmLabel {
     public void parseArgs(ArrayList<Argument> args, LinkedHashMap<Value, ArmReg> value2Reg) {
         for(Argument arg: args) {
             if(arg.getType().isFloatTy()) {
-                if(argFloatNum >= 4) {
-                    stackPosition += 4;
+                // AAPCS64: 8 floating-point argument registers (d0-d7)
+                if(argFloatNum >= 8) {
+                    // ARMv8-A: 8-byte alignment on stack
+                    stackPosition = (stackPosition + 7) & ~7; // Align to 8 bytes
+                    stackPosition += 8;
                     value2StackPos.put(arg, stackPosition);
                 } else {
                     ArmVirReg virReg = getNewReg(ArmVirReg.RegType.floatType);
@@ -61,8 +64,11 @@ public class ArmFunction extends ArmLabel {
                 }
                 argFloatNum++;
             } else {
-                if(argIntNum >= 4) {
-                    stackPosition += 4;
+                // AAPCS64: 8 general-purpose argument registers (x0-x7)
+                if(argIntNum >= 8) {
+                    // ARMv8-A: 8-byte alignment on stack
+                    stackPosition = (stackPosition + 7) & ~7; // Align to 8 bytes
+                    stackPosition += 8;
                     value2StackPos.put(arg, stackPosition);
                 } else {
                     ArmVirReg virReg = getNewReg(ArmVirReg.RegType.intType);
@@ -80,12 +86,19 @@ public class ArmFunction extends ArmLabel {
 
 
     public void alloc(ArmVirReg reg) {
-        stackPosition += 4;
+        // ARMv8-A: Use 8-byte slots for general registers, maintain 16-byte alignment
+        stackPosition += 8;
+        // Ensure 16-byte alignment
+        stackPosition = (stackPosition + 15) & ~15;
         value2StackPos.put(reg, stackPosition);
     }
 
     public void alloc(AllocInst allocInst) {
-        stackPosition = stackPosition + allocInst.getSize() * 4;
+        // ARMv8-A: Ensure 16-byte stack alignment
+        int allocSize = allocInst.getSize() * 4;
+        // Align allocation size to 16 bytes
+        allocSize = (allocSize + 15) & ~15;
+        stackPosition = stackPosition + allocSize;
         value2StackPos.put(allocInst, stackPosition);
     }
 

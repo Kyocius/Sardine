@@ -1179,11 +1179,13 @@ public class ArmCodeGen {
             }
             if (ptr2Offset.containsKey(storeInst.getPointer())) {
                 int offset = ptr2Offset.get(storeInst.getPointer());
-                if (offset >= -4095 && offset <= 4095 &&
+                // ARMv8-A: ldr/str immediate offset range is -256 to +255 (unscaled)
+                // or 0 to +32760 (scaled, multiple of 8 for 64-bit)
+                if (offset >= -256 && offset <= 255 &&
                         !((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
                     ArmSw armSw = new ArmSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                     addInstr(armSw, insList, predefine);
-                } else if (ArmTools.isLegalVLoadStoreImm(offset)
+                } else if (offset >= 0 && offset <= 32760 && (offset % 8 == 0)
                         && ((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
                     ArmFSw fsw = new ArmFSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                     addInstr(fsw, insList, predefine);

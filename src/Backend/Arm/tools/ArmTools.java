@@ -28,7 +28,19 @@ public class ArmTools {
     }
 
     public static boolean isLegalVLoadStoreImm(int offset) {
-        return Math.abs(offset) <= 1020 && Math.abs(offset) >= 0 && offset % 4 == 0;
+        // ARMv8-A floating-point load/store: 0 to +32760, multiple of 8
+        return offset >= 0 && offset <= 32760 && offset % 8 == 0;
+    }
+
+    // ARMv8-A: Check if offset is valid for ldr/str immediate (unscaled)
+    public static boolean isLegalLoadStoreImm(int offset) {
+        return offset >= -256 && offset <= 255;
+    }
+
+    // ARMv8-A: Check if offset is valid for ldr/str immediate (scaled)
+    public static boolean isLegalLoadStoreScaledImm(int offset, int elementSize) {
+        int maxOffset = 4095 * elementSize;
+        return offset >= 0 && offset <= maxOffset && (offset % elementSize == 0);
     }
 
     public enum CondType {
