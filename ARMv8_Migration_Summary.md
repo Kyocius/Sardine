@@ -55,6 +55,11 @@
 ### 6. 64位除法库函数
 - `__aeabi_ldivmod` → `__divti3` (AArch64 128位除法函数)
 
+### 7. 汇编指令头部更新 (ArmModule.java)
+- **架构声明**: `.arch armv7ve` → `.arch armv8-a`
+- **浮点单元**: 移除 `.fpu vfpv3-d16`（ARMv8-A内置SIMD&FP）
+- **数据对齐**: `.align 4` → `.align 8` (64位对齐)
+
 ## 主要架构差异
 
 ### ARMv7 vs ARMv8-A

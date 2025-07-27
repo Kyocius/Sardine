@@ -44,11 +44,11 @@ public class ArmModule {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        //TODO 后续可能可以更新为v8指令
-        sb.append(".arch armv7ve\n.fpu vfpv3-d16\n\n");
+        // ARMv8-A 64-bit architecture declaration
+        sb.append(".arch armv8-a\n");
         if(!dataGlobalVariables.isEmpty()) {
             sb.append(".data\n");
-            sb.append(".align\t4\n");
+            sb.append(".align\t8\n"); // ARMv8-A: 8-byte alignment for 64-bit
             for (ArmGlobalVariable globalVariable : dataGlobalVariables) {
                 sb.append(globalVariable.dump());
             }
@@ -56,7 +56,7 @@ public class ArmModule {
 
         if(!bssGlobalVariables.isEmpty()) {
             sb.append(".bss\n");
-            sb.append(".align\t4\n");
+            sb.append(".align\t8\n"); // ARMv8-A: 8-byte alignment for 64-bit
             for (ArmGlobalVariable globalVariable : bssGlobalVariables) {
                 sb.append(globalVariable.dump());
             }
