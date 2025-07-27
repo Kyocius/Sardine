@@ -4,42 +4,43 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Parser {
+
     private final TokenList tokenList;
 
     public Parser(TokenList tokenList){
         this.tokenList = tokenList;
     }
 
-    public AST parseAST(){
+    public AST parseAST() {
         ArrayList<AST.CompUnit> units = new ArrayList<>();
         while (tokenList.hasNext()) {
-            if (tokenList.ahead(2).getType().equals(TokenType.LPARENT)) {
-                units.add(parseFuncDef());
-            }
-            else {
-                units.add(parseDecl());
-            }
+            // 判断是否为函数定义：当前 token 后第 2 个 token 是左括号
+            boolean isFuncDef = tokenList.ahead(2).type().equals(TokenType.LPARENT);
+            AST.CompUnit unit = isFuncDef ? parseFuncDef() : parseDecl();
+            units.add(unit);
         }
         return new AST(units);
     }
 
-    private AST.FuncDef parseFuncDef(){
+    private AST.FuncDef parseFuncDef() {
         Token type = tokenList.consume(TokenType.VOIDTK, TokenType.INTTK, TokenType.FLOATTK);
         Token ident = tokenList.consume(TokenType.IDENFR);
-        ArrayList<AST.FuncFParam> fParams = new ArrayList<>();
         tokenList.consume(TokenType.LPARENT);
-        if (!tokenList.get().getType().equals(TokenType.RPARENT)) {
+        ArrayList<AST.FuncFParam> fParams;
+        if (!tokenList.get().type().equals(TokenType.RPARENT)) {
             fParams = parseFuncFParams();
+        } else {
+            fParams = new ArrayList<>();
         }
         tokenList.consume(TokenType.RPARENT);
         AST.Block body = parseBlock();
-        return new AST.FuncDef(type.getVal(), ident.getVal(), fParams, body);
+        return new AST.FuncDef(type.value(), ident.value(), fParams, body);
     }
 
     private AST.Decl parseDecl(){
         ArrayList<AST.Def> defs = new ArrayList<>();
         boolean constant;
-        if (tokenList.get().getType().equals(TokenType.CONSTTK)) {
+        if (tokenList.get().type().equals(TokenType.CONSTTK)) {
             tokenList.consume();
             constant = true;
         }
@@ -48,19 +49,19 @@ public class Parser {
         }
         Token bType = tokenList.consume(TokenType.INTTK, TokenType.FLOATTK);
         defs.add(parseDef(constant));
-        while (tokenList.get().getType().equals(TokenType.COMMA)) {
+        while (tokenList.get().type().equals(TokenType.COMMA)) {
             tokenList.consume();
             defs.add(parseDef(constant));
         }
         tokenList.consume(TokenType.SEMICN);
-        return new AST.Decl(constant, bType.getVal(), defs);
+        return new AST.Decl(constant, bType.value(), defs);
     }
 
     private AST.Def parseDef(boolean constant) {
         Token ident = tokenList.consume(TokenType.IDENFR);
         ArrayList<AST.Exp> indexes = new ArrayList<>();
         AST.Init init = null;
-        while (tokenList.get().getType().equals(TokenType.LBRACK)) {
+        while (tokenList.get().type().equals(TokenType.LBRACK)) {
             tokenList.consume();
             indexes.add(parseAddExp());
             tokenList.consume(TokenType.RBRACK);
@@ -70,16 +71,16 @@ public class Parser {
             init = parseInitVal();
         }
         else {
-            if (tokenList.hasNext() && tokenList.get().getType().equals(TokenType.ASSIGN)) {
+            if (tokenList.hasNext() && tokenList.get().type().equals(TokenType.ASSIGN)) {
                 tokenList.consume();
                 init = parseInitVal();
             }
         }
-        return new AST.Def(ident.getVal(), indexes, init);
+        return new AST.Def(ident.value(), indexes, init);
     }
 
     private AST.Init parseInitVal() {
-        if (tokenList.get().getType().equals(TokenType.LBRACE)) {
+        if (tokenList.get().type().equals(TokenType.LBRACE)) {
             return parseInitArray();
         }
         else {
@@ -90,9 +91,9 @@ public class Parser {
     private AST.InitArray parseInitArray(){
         ArrayList<AST.Init> init = new ArrayList<>();
         tokenList.consume(TokenType.LBRACE);
-        if (!tokenList.get().getType().equals(TokenType.RBRACE)) {
+        if (!tokenList.get().type().equals(TokenType.RBRACE)) {
             init.add(parseInitVal());
-            while (tokenList.get().getType().equals(TokenType.COMMA)) {
+            while (tokenList.get().type().equals(TokenType.COMMA)) {
                 tokenList.consume();
                 init.add(parseInitVal());
             }
@@ -104,7 +105,7 @@ public class Parser {
     private ArrayList<AST.FuncFParam> parseFuncFParams() {
         ArrayList<AST.FuncFParam> fParams = new ArrayList<>();
         fParams.add(parseFuncFParam());
-        while (tokenList.hasNext() && tokenList.get().getType().equals(TokenType.COMMA)) {
+        while (tokenList.hasNext() && tokenList.get().type().equals(TokenType.COMMA)) {
             tokenList.consume(TokenType.COMMA);
             fParams.add(parseFuncFParam());
         }
@@ -116,23 +117,23 @@ public class Parser {
         Token ident = tokenList.consume(TokenType.IDENFR);
         boolean array = false;
         ArrayList<AST.Exp> sizes = new ArrayList<>();
-        if (tokenList.hasNext() && tokenList.get().getType().equals(TokenType.LBRACK)) {
+        if (tokenList.hasNext() && tokenList.get().type().equals(TokenType.LBRACK)) {
             array = true;
             tokenList.consume(TokenType.LBRACK);
             tokenList.consume(TokenType.RBRACK);
-            while (tokenList.hasNext() && tokenList.get().getType().equals(TokenType.LBRACK)) {
+            while (tokenList.hasNext() && tokenList.get().type().equals(TokenType.LBRACK)) {
                 tokenList.consume(TokenType.LBRACK);
                 sizes.add(parseAddExp());
                 tokenList.consume(TokenType.RBRACK);
             }
         }
-        return new AST.FuncFParam(bType.getVal(), ident.getVal(), array, sizes);
+        return new AST.FuncFParam(bType.value(), ident.value(), array, sizes);
     }
 
     private AST.Block parseBlock() {
         ArrayList<AST.BlockItem> items = new ArrayList<>();
         tokenList.consume(TokenType.LBRACE);
-        while (!tokenList.get().getType().equals(TokenType.RBRACE)) {
+        while (!tokenList.get().type().equals(TokenType.RBRACE)) {
             items.add(parseBlockItem());
         }
         tokenList.consume(TokenType.RBRACE);
@@ -140,7 +141,7 @@ public class Parser {
     }
 
     private AST.BlockItem parseBlockItem() {
-        TokenType tokenType = tokenList.get().getType();
+        TokenType tokenType = tokenList.get().type();
         if (tokenType.equals(TokenType.FLOATTK) || tokenType.equals(TokenType.INTTK) || tokenType.equals(TokenType.CONSTTK)) {
             return parseDecl();
         }
@@ -150,7 +151,7 @@ public class Parser {
     }
 
     private AST.Stmt parseStmt() {
-        TokenType stmtType = tokenList.get().getType();
+        TokenType stmtType = tokenList.get().type();
         AST.Exp cond;
         switch (stmtType) {
             case LBRACE:
@@ -162,7 +163,7 @@ public class Parser {
                 tokenList.consume(TokenType.RPARENT);
                 AST.Stmt thenTarget = parseStmt();
                 AST.Stmt elseTarget = null;
-                if (tokenList.hasNext() && tokenList.get().getType().equals(TokenType.ELSETK)) {
+                if (tokenList.hasNext() && tokenList.get().type().equals(TokenType.ELSETK)) {
                     tokenList.consume(TokenType.ELSETK);
                     elseTarget = parseStmt();
                 }
@@ -185,7 +186,7 @@ public class Parser {
             case RETURNTK:
                 tokenList.consume(TokenType.RETURNTK);
                 AST.Exp value = null;
-                if (!tokenList.get().getType().equals(TokenType.SEMICN)) {
+                if (!tokenList.get().type().equals(TokenType.SEMICN)) {
                     value = parseAddExp();
                 }
                 tokenList.consume(TokenType.SEMICN);
@@ -200,7 +201,7 @@ public class Parser {
                 }
                 else {
                     // 只有一个 LVal，可能是 Exp; 也可能是 Assign
-                    if (tokenList.get().getType().equals(TokenType.ASSIGN)) {
+                    if (tokenList.get().type().equals(TokenType.ASSIGN)) {
                         tokenList.consume(TokenType.ASSIGN);
                         AST.Exp right = parseAddExp();
                         tokenList.consume(TokenType.SEMICN);
@@ -223,43 +224,43 @@ public class Parser {
     private AST.LVal parseLVal() {
         Token ident = tokenList.consume(TokenType.IDENFR);
         ArrayList<AST.Exp> indexes = new ArrayList<>();
-        while (tokenList.hasNext() && tokenList.get().getType().equals(TokenType.LBRACK)) {
+        while (tokenList.hasNext() && tokenList.get().type().equals(TokenType.LBRACK)) {
             tokenList.consume(TokenType.LBRACK);
             indexes.add(parseAddExp());
             tokenList.consume(TokenType.RBRACK);
         }
-        return new AST.LVal(ident.getVal(), indexes);
+        return new AST.LVal(ident.value(), indexes);
     }
 
     private AST.PrimaryExp parsePrimary() {
         Token priExp = tokenList.get();
-        if (priExp.getType().equals(TokenType.LPARENT)) {
+        if (priExp.type().equals(TokenType.LPARENT)) {
             tokenList.consume();
             AST.Exp exp = parseAddExp();
             tokenList.consume(TokenType.RPARENT);
             return exp;
         }
-        else if (priExp.getType().equals(TokenType.HEXCON)) {
+        else if (priExp.type().equals(TokenType.HEXCON)) {
             Token number = tokenList.consume();
-            return new AST.Number(number.getVal(), "hex");
+            return new AST.Number(number.value(), "hex");
         }
-        else if (priExp.getType().equals(TokenType.OCTCON)) {
+        else if (priExp.type().equals(TokenType.OCTCON)) {
             Token number = tokenList.consume();
-            return new AST.Number(number.getVal(), "oct");
+            return new AST.Number(number.value(), "oct");
         }
-        else if (priExp.getType().equals(TokenType.DECCON)) {
+        else if (priExp.type().equals(TokenType.DECCON)) {
             Token number = tokenList.consume();
-            return new AST.Number(number.getVal(), "dec");
+            return new AST.Number(number.value(), "dec");
         }
-        else if (priExp.getType().equals(TokenType.DECFCON)) {
+        else if (priExp.type().equals(TokenType.DECFCON)) {
             Token number = tokenList.consume();
-            return new AST.Number(number.getVal(), "decfloat");
+            return new AST.Number(number.value(), "decfloat");
         }
-        else if (priExp.getType().equals(TokenType.HEXFCON)){
+        else if (priExp.type().equals(TokenType.HEXFCON)){
             Token number = tokenList.consume();
-            return new AST.Number(number.getVal(), "hexfloat");
+            return new AST.Number(number.value(), "hexfloat");
         }
-        else if (priExp.getType().equals(TokenType.IDENFR) && tokenList.ahead(1).getType().equals(TokenType.LPARENT)) {
+        else if (priExp.type().equals(TokenType.IDENFR) && tokenList.ahead(1).type().equals(TokenType.LPARENT)) {
             return parseCall();
         }
         else {
@@ -271,15 +272,15 @@ public class Parser {
         Token ident = tokenList.consume(TokenType.IDENFR);
         ArrayList<AST.Exp> params = new ArrayList<>();
         tokenList.consume(TokenType.LPARENT);
-        if (!tokenList.get().getType().equals(TokenType.RPARENT)) {
+        if (!tokenList.get().type().equals(TokenType.RPARENT)) {
             params.add(parseAddExp());
-            while (tokenList.get().getType().equals(TokenType.COMMA)) {
+            while (tokenList.get().type().equals(TokenType.COMMA)) {
                 tokenList.consume();
                 params.add(parseAddExp());
             }
         }
         tokenList.consume(TokenType.RPARENT);
-        return new AST.Call(ident.getVal(), params);
+        return new AST.Call(ident.value(), params);
     }
 
     // 二元表达式的种类
@@ -320,9 +321,9 @@ public class Parser {
         AST.Exp first = parseSubBinaryExp(expType);
         ArrayList<String> operators = new ArrayList<>();
         ArrayList<AST.Exp> follows = new ArrayList<>();
-        while (tokenList.hasNext() && expType.contains(tokenList.get().getType())) {
+        while (tokenList.hasNext() && expType.contains(tokenList.get().type())) {
             Token op = tokenList.consume(); // 取得当前层次的运算符
-            operators.add(op.getVal());
+            operators.add(op.value());
             follows.add(parseSubBinaryExp(expType));
         }
         return new AST.BinaryExp(first, operators, follows);
@@ -330,10 +331,10 @@ public class Parser {
 
     private AST.UnaryExp parseUnaryExp() {
         ArrayList<String> unaryOps = new ArrayList<>();
-        TokenType tokenType = tokenList.get().getType();
+        TokenType tokenType = tokenList.get().type();
         while (tokenType.equals(TokenType.PLUS) || tokenType.equals(TokenType.MINU) || tokenType.equals(TokenType.NOT)) {
-            unaryOps.add(tokenList.consume().getVal());
-            tokenType = tokenList.get().getType();
+            unaryOps.add(tokenList.consume().value());
+            tokenType = tokenList.get().type();
         }
         AST.PrimaryExp primary = parsePrimary();
         return new AST.UnaryExp(unaryOps, primary);

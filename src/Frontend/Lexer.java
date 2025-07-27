@@ -6,32 +6,32 @@ import java.io.*;
 
 public class Lexer {
 
-    private static final Lexer lexer;
-    private final PushbackReader in = new PushbackReader(new FileReader(Config.inputFile));
-    private char c;
-    private int readIn;
+    private static final Lexer INSTANCE;
+    private final PushbackReader inputReader = new PushbackReader(new FileReader(Config.inputFile));
+    private char currentChar;
+    private int currentCharCode;
 
     static {
         try {
-            lexer = new Lexer();
+            INSTANCE = new Lexer();
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static Lexer getInstance(){
+        return INSTANCE;
+    }
+
+    private Lexer() throws FileNotFoundException {
     }
 
     private boolean isAlpha(char x){
         return (x <= 'z' && x >= 'a') || (x <= 'Z' && x >= 'A');
     }
 
-    private boolean isNumber(char x){
-        return (x <= '9' && x >= '0');
-    }
-
-    private Lexer() throws FileNotFoundException {
-    }
-
-    public static Lexer getInstance(){
-        return lexer;
+    private boolean isNumber(char x) {
+        return Character.isDigit(x);
     }
 
     private boolean isAlNum(char x){
@@ -39,18 +39,18 @@ public class Lexer {
     }
 
     private char readChar() throws IOException {
-        readIn = in.read();
-        c = (char) readIn;
-        return c;
+        currentCharCode = inputReader.read();
+        currentChar = (char) currentCharCode;
+        return currentChar;
     }
 
     private Token Ident() throws IOException {
         StringBuilder identBuilder = new StringBuilder();
-        while (isAlNum(c) || c == '_'){
-            identBuilder.append(c);
-            c = readChar();
+        while (isAlNum(currentChar) || currentChar == '_'){
+            identBuilder.append(currentChar);
+            currentChar = readChar();
         }
-        in.unread(c);
+        inputReader.unread(currentChar);
         String ident = identBuilder.toString();
         return switch (ident) {
             case "const" -> new Token(TokenType.CONSTTK, ident);
@@ -69,14 +69,10 @@ public class Lexer {
 
     }
     private Token FString() throws IOException {
-        StringBuilder FStringBuilder = new StringBuilder();
-        FStringBuilder.append('"');
-        while (readChar() != '"'){
-            FStringBuilder.append(c);
-        }
-        FStringBuilder.append('"');
-        String FString = FStringBuilder.toString();
-        return new Token(TokenType.STRCON, FString);
+        StringBuilder sb = new StringBuilder().append('"');
+        while (readChar() != '"') sb.append(currentChar);
+        sb.append('"');
+        return new Token(TokenType.STRCON, sb.toString());
     }
 
     /*
@@ -86,99 +82,139 @@ public class Lexer {
     * 2. digit-seq.[e+/-digit-seq]
     * 3. digit-seq
     *
+    * 可以是“数字序列.数字序列”，后面可选“e+/-数字序列”（如12.34e+56）
+    可以是“数字序列.”，后面可选“e+/-数字序列”（如12.e-3）
+    也可以只是“数字序列”（如123）
+    *
     * */
     private Token Number() throws IOException {
+        StringBuilder numBuilder = new StringBuilder();
         boolean isFloat = false;
         boolean isHex = false;
-        boolean isOct;
-        StringBuilder numBuilder = new StringBuilder();
-        isOct = (c == '0');
-        while (isNumber(c) || c == 'x' || c == 'X' || c == '+' || c == '-'
-                || c == 'p' || c == 'P' || c == '.' ||
-                (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')){
-            if(c == '.'){
-                isFloat = true;
-                isOct = false;
-            }
-            else if(c == 'X' || c == 'x'){
+        boolean isOct = false;
+
+        // 判断八进制
+        if (currentChar == '0') {
+            numBuilder.append(currentChar);
+            readChar();
+            if (currentChar == 'x' || currentChar == 'X') {
                 isHex = true;
-                isOct = false;
-            }
-            else if(c == 'p' || c == 'P'){
+                numBuilder.append(currentChar);
+                readChar();
+            } else if (isNumber(currentChar)) {
+                isOct = true;
+            } else if (currentChar == '.') {
                 isFloat = true;
-                isHex = true;
+            } else {
+                inputReader.unread(currentChar);
+                String num = numBuilder.toString();
+                return new Token(TokenType.DECCON, num);
             }
-            else if((c == 'e' || c == 'E') && !isHex){
-                isFloat = true;
-            }
-            else if(c == '+' || c == '-'){
-                String nowStr = numBuilder.toString();
-                char last = nowStr.charAt(nowStr.length() - 1);
-                if(last != 'p' && last != 'P' && last != 'e' && last != 'E'){
+        }
+
+        while (true) {
+            if (isHex) {
+                if (isNumber(currentChar) ||
+                    (currentChar >= 'a' && currentChar <= 'f') ||
+                    (currentChar >= 'A' && currentChar <= 'F')) {
+                    numBuilder.append(currentChar);
+                } else if (currentChar == 'p' || currentChar == 'P') {
+                    isFloat = true;
+                    numBuilder.append(currentChar);
+                } else if ((currentChar == '+' || currentChar == '-') && numBuilder.length() > 0) {
+                    char last = numBuilder.charAt(numBuilder.length() - 1);
+                    if (last == 'p' || last == 'P') {
+                        numBuilder.append(currentChar);
+                    } else {
+                        break;
+                    }
+                } else if (currentChar == '.') {
+                    isFloat = true;
+                    numBuilder.append(currentChar);
+                } else {
                     break;
                 }
-                if((last == 'e' || last == 'E') && !isFloat){
+            } else if (isOct) {
+                if (currentChar >= '0' && currentChar <= '7') {
+                    numBuilder.append(currentChar);
+                } else {
+                    break;
+                }
+            } else {
+                if (isNumber(currentChar)) {
+                    numBuilder.append(currentChar);
+                } else if (currentChar == '.') {
+                    if (isFloat) break;
+                    isFloat = true;
+                    numBuilder.append(currentChar);
+                } else if (currentChar == 'e' || currentChar == 'E') {
+                    isFloat = true;
+                    numBuilder.append(currentChar);
+                } else if ((currentChar == '+' || currentChar == '-') && numBuilder.length() > 0) {
+                    char last = numBuilder.charAt(numBuilder.length() - 1);
+                    if (last == 'e' || last == 'E') {
+                        numBuilder.append(currentChar);
+                    } else {
+                        break;
+                    }
+                } else {
                     break;
                 }
             }
-            numBuilder.append(c);
             readChar();
         }
-        in.unread(c);
+
+        inputReader.unread(currentChar);
         String num = numBuilder.toString();
-        if(num.equals("0")) isOct = false;
-        if(isFloat && isHex) return new Token(TokenType.HEXFCON, num);
-        else if(isFloat) return new Token(TokenType.DECFCON, num);
-        else if(isHex) return new Token(TokenType.HEXCON, num);
-        else if(isOct) return new Token(TokenType.OCTCON, num);
-        else return new Token(TokenType.DECCON, num);
+
+        if (isHex && isFloat) return new Token(TokenType.HEXFCON, num);
+        if (isHex) return new Token(TokenType.HEXCON, num);
+        if (isOct) return new Token(TokenType.OCTCON, num);
+        if (isFloat) return new Token(TokenType.DECFCON, num);
+        return new Token(TokenType.DECCON, num);
     }
 
     private void Comment() throws IOException {
-        if(c == '/'){
-            while (c != '\n' && c != '\uFFFF'){
-                readChar();
-            }
-        }
-        else if(c == '*'){
-            readChar();
-            while (true){
-                if(readIn == -1) return;
-                if(c == '*'){
-                    if(readChar() == '/') return;
-                    else {
-                        in.unread(c);
-                    }
+        if (currentChar == '/') {
+            // 单行注释，跳过直到行尾或文件结束
+            while (readChar() != '\n' && currentCharCode != -1) {}
+        } else if (currentChar == '*') {
+            // 多行注释，跳过直到遇到 */
+            while (true) {
+                if (readChar() == -1) return;
+                if (currentChar == '*') {
+                    if (readChar() == '/') return;
+                    else inputReader.unread(currentChar);
                 }
-                readChar();
             }
         }
     }
 
-    private Token getTok() throws IOException {
-        while ((readIn = in.read()) != -1){
-            c = (char)readIn;
+    private Token getToken() throws IOException {
+        while ((currentCharCode = inputReader.read()) != -1){
 
-            while (c == ' ' || c == '\t' || c == '\n'|| c == '\r'){
-                readIn = in.read();
-                c = (char)readIn;
+            currentChar = (char) currentCharCode;
+
+            while (currentChar == ' ' || currentChar == '\t' || currentChar == '\n'|| currentChar == '\r'){
+                currentCharCode = inputReader.read();
+                currentChar = (char) currentCharCode;
             }
 
-            if(isAlpha(c) || c == '_'){
+            if(isAlpha(currentChar) || currentChar == '_'){
                 return Ident();
             }
-            if(isNumber(c) || c == '.'){
+            if(isNumber(currentChar) || currentChar == '.'){
                 return Number();
             }
-            if(c == '"'){
+            if(currentChar == '"'){
                 return FString();
             }
 
-            switch (c){
+            switch (currentChar){
                 case '/':
                     readChar();
-                    if(c != '*' && c != '/'){
-                        in.unread(c);
+                    if(currentChar != '*' && currentChar != '/'){
+                        inputReader.unread(currentChar);
                         return new Token(TokenType.DIV, "/");
                     }
                     else Comment();
@@ -188,7 +224,7 @@ public class Lexer {
                         return new Token(TokenType.NEQ, "!=");
                     }
                     else {
-                        in.unread(readIn);
+                        inputReader.unread(currentCharCode);
                         return new Token(TokenType.NOT, "!");
                     }
                 case '&':
@@ -212,7 +248,7 @@ public class Lexer {
                         return new Token(TokenType.LEQ, "<=");
                     }
                     else{
-                        in.unread(readIn);
+                        inputReader.unread(currentCharCode);
                         return new Token(TokenType.LSS, "<");
                     }
                 case '>':
@@ -220,7 +256,7 @@ public class Lexer {
                         return new Token(TokenType.GEQ, ">=");
                     }
                     else{
-                        in.unread(readIn);
+                        inputReader.unread(currentCharCode);
                         return new Token(TokenType.GRE, ">");
                     }
                 case '=':
@@ -228,7 +264,7 @@ public class Lexer {
                         return new Token(TokenType.EQL, "==");
                     }
                     else {
-                        in.unread(readIn);
+                        inputReader.unread(currentCharCode);
                         return new Token(TokenType.ASSIGN, "=");
                     }
                 case ';':
@@ -254,10 +290,10 @@ public class Lexer {
         return null;
     }
 
-    public TokenList lex() throws IOException {
+    public TokenList scanTokens() throws IOException {
         TokenList tokenList = new TokenList();
         while (true){
-            Token token = this.getTok();
+            Token token = this.getToken();
             if(token == null) break;
             tokenList.addToken(token);
         }

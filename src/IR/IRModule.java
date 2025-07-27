@@ -7,10 +7,6 @@ import java.util.ArrayList;
 public record IRModule(ArrayList<Function> functions, ArrayList<GlobalVar> globalVars,
                        ArrayList<Function> libFunctions) {
 
-    public void addGlobalVar(GlobalVar globalVar) {
-        globalVars.add(globalVar);
-    }
-
     public void addFunction(Function function) {
         functions.add(function);
     }

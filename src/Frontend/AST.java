@@ -3,10 +3,6 @@ package Frontend;
 import java.util.ArrayList;
 import java.util.Objects;
 
-/**
- * 语法抽象树节点集合 - 经过现代化重构
- * 为了降低编译器构建的复杂性，对文法进行了优化改写
- */
 public record AST(ArrayList<CompUnit> units) {
 
     // CompUnit -> Decl | FuncDef

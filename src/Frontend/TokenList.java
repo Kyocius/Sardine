@@ -6,6 +6,7 @@ import java.util.Arrays;
 public class TokenList {
 
     public final ArrayList<Token> tokens = new ArrayList<>();
+
     private int index = 0;
 
     public void addToken(Token token) {
@@ -24,29 +25,23 @@ public class TokenList {
         return tokens.get(index + count);
     }
 
-
-    public Token consume(){
+    public Token consume() {
         return tokens.get(index++);
     }
 
-    // Usage: tokenList.consumeExpected(TokenType.INT, TokenType.VOID)
-    public Token consume(TokenType... types){
+    // 用于消费指定类型的Token，支持多个类型
+    public Token consume(TokenType... types) {
+        if (index >= tokens.size()) return null;
         Token token = tokens.get(index);
-        for (TokenType type : types) {
-            if (token.getType().equals(type)) {
-                index++;
-                return token;
-            }
-        }
-        return null;
-    }
-
-    public Token consume(TokenType type) {
-        Token token = tokens.get(index);
-        if (token.getType().equals(type)) {
+        if (Arrays.asList(types).contains(token.type())) {
             index++;
             return token;
         }
         return null;
+    }
+
+    // 用于消费指定类型的Token，单一类型
+    public Token consume(TokenType type) {
+        return consume(new TokenType[]{type});
     }
 }

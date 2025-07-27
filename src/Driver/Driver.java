@@ -28,7 +28,7 @@ public class Driver {
         //  解析参数
         parseArgs(args);
         //  开始编译流程
-        TokenList tokenList = Lexer.getInstance().lex();
+        TokenList tokenList = Lexer.getInstance().scanTokens();
         AST compAST = new Parser(tokenList).parseAST();
         IRModule irModule = new Visitor().visitAST(compAST);
 
