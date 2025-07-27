@@ -12,6 +12,7 @@ public class ArmFMv extends ArmMv {
 
     @Override
     public String toString() {
-        return "vmov\t" + getDefReg() + ",\t" + getOperands().get(0);
+        // ARMv8-A floating-point move
+        return "fmov\t" + getDefReg() + ",\t" + getOperands().get(0);
     }
 }

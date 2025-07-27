@@ -14,6 +14,7 @@ public class ArmConvMv extends ArmInstruction {
 
     @Override
     public String toString() {
-        return "vmov\t" + getDefReg() + ",\t" + getOperands().get(0);
+        // ARMv8-A: move between general-purpose and SIMD&FP registers
+        return "fmov\t" + getDefReg() + ",\t" + getOperands().get(0);
     }
 }

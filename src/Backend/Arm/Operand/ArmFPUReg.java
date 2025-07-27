@@ -5,15 +5,16 @@ import java.util.LinkedHashMap;
 public class ArmFPUReg extends ArmPhyReg {
     private static LinkedHashMap<Integer, ArmFPUReg> armFPURegs = new LinkedHashMap<>();
     static {
+        // ARMv8-A has 32 SIMD and floating-point registers d0-d31
         for (int i = 0; i <= 31; i++) {
-            armFPURegs.put(i, new ArmFPUReg(i, "s" + i));
+            armFPURegs.put(i, new ArmFPUReg(i, "d" + i));
         }
     }
 
     @Override
     public boolean canBeReorder() {
-        //TODO
-        if(index >= 10 && index <= 16){
+        // ARMv8-A: d8-d15 are callee-saved registers
+        if(index >= 8 && index <= 15){
             return false;
         }
         return true;
@@ -28,7 +29,7 @@ public class ArmFPUReg extends ArmPhyReg {
     }
 
     public static ArmFPUReg getArmFArgReg(int argIndex) {
-        assert argIndex < 4;
+        assert argIndex < 8; // ARMv8-A has 8 floating-point argument registers d0-d7
         return getArmFloatReg(argIndex);
     }
 

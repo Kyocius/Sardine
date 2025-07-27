@@ -14,6 +14,6 @@ public class ArmSyscall extends ArmInstruction {
 
     @Override
     public String toString() {
-        return "swi\t" + getOperands().get(0);
+        return "svc\t" + getOperands().get(0); // ARMv8-A uses svc instead of swi
     }
 }

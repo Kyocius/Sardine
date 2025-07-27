@@ -29,7 +29,7 @@ public class ArmCodeGen {
     private final LinkedHashMap<Value, Integer> ptr2Offset = new LinkedHashMap<>();
     private ArmBlock curArmBlock = null;
     private ArmFunction curArmFunction = null;
-    private ArmFunction ldivmod = new ArmFunction("__aeabi_ldivmod");
+    private ArmFunction ldivmod = new ArmFunction("__divti3"); // AArch64 128-bit division function
     private final LinkedHashMap<Instruction, ArrayList<ArmInstruction>> predefines = new LinkedHashMap<>();
 
     public ArmCodeGen(IRModule irModule) {
@@ -44,7 +44,7 @@ public class ArmCodeGen {
     }
 
     public void run() {
-        System.out.println("start gen code for armv8-a, now using v7");
+        System.out.println("start gen code for armv8-a 64-bit");
         ArmCPUReg.getArmCPUReg(0);
         ArmFPUReg.getArmFloatReg(0);
         for (var globalVariable : irModule.globalVars()) {
@@ -109,13 +109,13 @@ public class ArmCodeGen {
         curArmFunction.addBlock(new IList.INode<>(curArmBlock));
 
         ArmGlobalVariable stoR7 = new ArmGlobalVariable("parallell_stoR7",
-                false, 4, new ArrayList<>(List.of(new ArmGlobalZero(4))));
+                false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
         armModule.addBssVar(stoR7);
         ArmGlobalVariable stoR5 = new ArmGlobalVariable("parallell_stoR5",
-                false, 4, new ArrayList<>(List.of(new ArmGlobalZero(4))));
+                false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
         armModule.addBssVar(stoR5);
         ArmGlobalVariable stoLr = new ArmGlobalVariable("parallell_stoLR",
-                false, 4, new ArrayList<>(List.of(new ArmGlobalZero(4))));
+                false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
         armModule.addBssVar(stoLr);
 
         addInstr(new ArmLi(stoR7, ArmCPUReg.getArmCPUReg(2)),
@@ -142,7 +142,9 @@ public class ArmCodeGen {
                 ArmCompare.CmpType.cmp), null, false);
         addInstr(new ArmBranch(armBlock2, ArmTools.CondType.eq), null, false);
 
-        addInstr(new ArmLi(new ArmImm(120), ArmCPUReg.getArmCPUReg(7)), null, false);
+        // TODO: Update syscall numbers for ARMv8-A (AArch64)
+        // ARMv7: clone = 120, ARMv8-A: clone = 220
+        addInstr(new ArmLi(new ArmImm(220), ArmCPUReg.getArmCPUReg(8)), null, false); // x8 holds syscall number in AArch64
         addInstr(new ArmLi(new ArmImm(273), ArmCPUReg.getArmArgReg(0)), null, false);
         addInstr(new ArmMv(ArmCPUReg.getArmSpReg(), ArmCPUReg.getArmArgReg(1)), null, false);
 
@@ -179,10 +181,10 @@ public class ArmCodeGen {
         ArmBlock armBlock4 = new ArmBlock("parallel_end4");
 
         ArmGlobalVariable stoR7 = new ArmGlobalVariable("parallell_endR7",
-                false, 4, new ArrayList<>(List.of(new ArmGlobalZero(4))));
+                false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
         armModule.addBssVar(stoR7);
         ArmGlobalVariable stoLr = new ArmGlobalVariable("parallell_endLR",
-                false, 4, new ArrayList<>(List.of(new ArmGlobalZero(4))));
+                false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
         armModule.addBssVar(stoLr);
 
         curArmBlock = armBlock0;
@@ -193,7 +195,8 @@ public class ArmCodeGen {
 
         curArmBlock = armBlock1;
         curArmFunction.addBlock(new IList.INode<>(curArmBlock));
-        addInstr(new ArmLi(new ArmImm(1), ArmCPUReg.getArmCPUReg(7)), null, false);
+        // ARMv8-A: exit syscall number is 93, use x8 for syscall number
+        addInstr(new ArmLi(new ArmImm(93), ArmCPUReg.getArmCPUReg(8)), null, false);
         addInstr(new ArmSyscall(new ArmImm(0)), null, false);
 
         curArmBlock = armBlock2;

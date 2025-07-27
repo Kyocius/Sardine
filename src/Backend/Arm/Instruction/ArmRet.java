@@ -16,6 +16,7 @@ public class ArmRet extends ArmInstruction {
 
     @Override
     public String toString() {
-        return "bx" + " " + getOperands().get(0);
+        // ARMv8-A return instruction
+        return "ret";
     }
 }

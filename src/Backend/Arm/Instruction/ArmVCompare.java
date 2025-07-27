@@ -11,7 +11,7 @@ public class ArmVCompare extends ArmInstruction {
     }
 
     public String toString() {
-        return "vcmp.f32\t" + getOperands().get(0) + ",\t" + getOperands().get(1) + "\n" +
-                "\tvmrs\tAPSR_nzcv, fpscr\n";
+        // ARMv8-A floating-point compare
+        return "fcmp\t" + getOperands().get(0) + ",\t" + getOperands().get(1) + "\n";
     }
 }

@@ -18,7 +18,8 @@ public class ArmSmull extends ArmInstruction {
 
     @Override
     public String toString() {
-        return "@\n\tsmull\t" + defRegs.get(0) + ",\t" + defRegs.get(1) +  ",\t"
+        // ARMv8-A signed multiply long (32-bit operands produce 64-bit result)
+        return "@\n\tsmull\t" + defRegs.get(0) + ",\t"
                 +  getOperands().get(0) +  ", " + getOperands().get(1);
     }
 }

@@ -22,10 +22,10 @@ public class ArmLi extends ArmInstruction {
     }
 
 //    public enum ArmMovType {
-//        mov,
-//        movt, // 将16位立即数加载到目标寄存器高位, 保持低位不变
-//        mvn,
-//        movw // 加载到目标寄存器低位, 并将其高16位清空
+//        mov,   // ARMv8-A: move immediate
+//        movk,  // ARMv8-A: move immediate with keep (for 64-bit immediates)
+//        mvn,   // move not
+//        Note: ARMv7 movw/movt are replaced with mov/movk in ARMv8-A for 64-bit
 //    }
 
     public ArmTools.CondType getCondType() {

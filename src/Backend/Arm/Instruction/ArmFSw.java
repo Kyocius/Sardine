@@ -16,9 +16,10 @@ public class ArmFSw extends ArmInstruction {
     @Override
     public String toString() {
         if (getOperands().get(2) instanceof ArmImm && ((ArmImm)(getOperands().get(2))).getValue() == 0) {
-            return "vstr\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + "]";
+            // ARMv8-A floating-point store
+            return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + "]";
         } else {
-            return "vstr\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
+            return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
         }
     }
 }

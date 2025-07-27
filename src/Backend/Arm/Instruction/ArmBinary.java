@@ -96,16 +96,16 @@ public class ArmBinary extends ArmInstruction {
                 return "srem";
             }
             case vadd -> {
-                return "vadd.f32";
+                return "fadd";
             }
             case vsub -> {
-                return "vsub.f32";
+                return "fsub";
             }
             case vmul -> {
-                return "vmul.f32";
+                return "fmul";
             }
             case vdiv -> {
-                return "vdiv.f32";
+                return "fdiv";
             }
             case and -> {
                 return "and";

@@ -16,10 +16,12 @@ public class ArmCvt extends ArmInstruction {
     @Override
     public String toString() {
         if(ToFloat) {
-            return "vcvt.f32.s32" + "\t" + getDefReg() + "," + getOperands().get(0);
+            // ARMv8-A: convert signed integer to double-precision floating-point
+            return "scvtf" + "\t" + getDefReg() + "," + getOperands().get(0);
         }
         else {
-            return "vcvt.s32.f32" + "\t"+ getDefReg() + "," + getOperands().get(0);
+            // ARMv8-A: convert double-precision floating-point to signed integer
+            return "fcvtzs" + "\t"+ getDefReg() + "," + getOperands().get(0);
         }
     }
 }
