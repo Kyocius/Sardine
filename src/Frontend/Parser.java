@@ -352,16 +352,16 @@ public class Parser {
         AST.Exp cur = exp;
         while (cur instanceof AST.BinaryExp) {
             // 如果是二元表达式，只能有 first 否则一定不是一个 LVal
-            if (!(((AST.BinaryExp) cur).getFollows().isEmpty())) {
+            if (!(((AST.BinaryExp) cur).follows().isEmpty())) {
                 return null;
             }
-            cur = ((AST.BinaryExp) cur).getFirst();
+            cur = ((AST.BinaryExp) cur).first();
         }
         assert cur instanceof AST.UnaryExp;
-        if (!(((AST.UnaryExp) cur).getUnaryOps().isEmpty())) {
+        if (!(((AST.UnaryExp) cur).unaryOps().isEmpty())) {
             return null; // 不能有一元运算符
         }
-        AST.PrimaryExp primary = ((AST.UnaryExp) cur).getPrimary();
+        AST.PrimaryExp primary = ((AST.UnaryExp) cur).primary();
         if (primary instanceof AST.LVal) {
             return (AST.LVal) primary;
         } else {

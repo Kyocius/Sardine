@@ -1,16 +1,14 @@
 package IR;
 
-import Driver.Config;
 import Frontend.AST;
 import IR.Type.*;
 import IR.Value.*;
 import IR.Value.Instructions.*;
 import Utils.DataStruct.IList;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.util.Objects;
 
 public class Visitor {
     private IRModule module;
@@ -112,7 +110,7 @@ public class Visitor {
     //  isFetch表示当目标变量为指针的情况是否要取值
     //  true返回值，false返回指针
     private void visitLValAST(AST.LVal lValAST, boolean isFetch){
-        String ident = lValAST.getIdent();
+        String ident = lValAST.ident();
         CurValue = find(ident);
 
         assert CurValue != null;
@@ -124,11 +122,11 @@ public class Visitor {
          * */
 
         if (!CurValue.getType().isPointerType()) return;
-        if (lValAST.getIndexes().size() != 0) {
+        if (!lValAST.indexes().isEmpty()) {
             boolean isArrVal = true;
             Value basePtr = CurValue;
             ArrayList<Value> indexs = new ArrayList<>();
-            for (AST.Exp exp : lValAST.getIndexes()) {
+            for (AST.Exp exp : lValAST.indexes()) {
                 visitExpAST(exp, false);
                 indexs.add(CurValue);
             }
@@ -145,7 +143,7 @@ public class Visitor {
                 factor.set(i, factor.get(i + 1) * dimIndex.get(i + 1));
             }
 
-            CurValue = f.buildBinaryInst(indexs.get(0), f.buildNumber(factor.get(0)), OP.Mul, CurBasicBlock);
+            CurValue = f.buildBinaryInst(indexs.getFirst(), f.buildNumber(factor.getFirst()), OP.Mul, CurBasicBlock);
             for(int i = 1; i < indexs.size(); i++){
                 Value tmpValue = f.buildBinaryInst(indexs.get(i), f.buildNumber(factor.get(i)), OP.Mul, CurBasicBlock);
                 CurValue = f.buildBinaryInst(CurValue, tmpValue, OP.Add, CurBasicBlock);
@@ -197,7 +195,7 @@ public class Visitor {
                 values.add(CurValue);
             }
 
-            ArrayList<Argument> arguments = function.getArgs();
+            ArrayList<Argument> arguments = Objects.requireNonNull(function).getArgs();
             for(int i = 0; i < values.size(); i++){
                 Value value = values.get(i);
                 Type argType = arguments.get(i).getType();
@@ -218,8 +216,8 @@ public class Visitor {
     }
 
     private void visitUnaryExpAST(AST.UnaryExp unaryExpAST, boolean isConst){
-        visitPrimaryExpAST(unaryExpAST.getPrimary(), isConst);
-        ArrayList<String> unaryOPs = unaryExpAST.getUnaryOps();
+        visitPrimaryExpAST(unaryExpAST.primary(), isConst);
+        ArrayList<String> unaryOPs = unaryExpAST.unaryOps();
         int count = 0;
         for (int i = unaryOPs.size() - 1; i >= 0; i--) {
             String unaryOP = unaryOPs.get(i);
@@ -245,9 +243,9 @@ public class Visitor {
 
     private void visitBinaryExpAST(AST.BinaryExp binaryExpAST, boolean isConst){
         //  将binaryExp的first赋值到CurValue上
-        visitExpAST(binaryExpAST.getFirst(), isConst);
-        ArrayList<String> ops = binaryExpAST.getOperators();
-        ArrayList<AST.Exp> exps = binaryExpAST.getFollows();
+        visitExpAST(binaryExpAST.first(), isConst);
+        ArrayList<String> ops = binaryExpAST.operators();
+        ArrayList<AST.Exp> exps = binaryExpAST.follows();
         for(int i = 0; i < ops.size(); i++){
             Value TmpValue = CurValue;
             visitExpAST(exps.get(i), isConst);
@@ -274,10 +272,10 @@ public class Visitor {
         BasicBlock NxtLAndBlock;
         AST.BinaryExp binaryExp = (AST.BinaryExp) lAndExpAST;
         AST.Exp nowExp;
-        ArrayList<AST.Exp> follows = binaryExp.getFollows();
+        ArrayList<AST.Exp> follows = binaryExp.follows();
 
         for(int i = 0; i <= follows.size(); i++){
-            if(i == 0) nowExp = binaryExp.getFirst();
+            if(i == 0) nowExp = binaryExp.first();
             else nowExp = follows.get(i - 1);
 
             if(i != follows.size()){
@@ -297,11 +295,11 @@ public class Visitor {
         BasicBlock NxtLOrBlock;
         AST.BinaryExp binaryExpAST = (AST.BinaryExp) lOrExpAST;
         AST.Exp nowExp;
-        ArrayList<AST.Exp> follows = binaryExpAST.getFollows();
+        ArrayList<AST.Exp> follows = binaryExpAST.follows();
 
         for(int i = 0; i <= follows.size(); i++){
             //  确定nowExp(需要计算是否为true的值)
-            if(i == 0) nowExp = binaryExpAST.getFirst();
+            if(i == 0) nowExp = binaryExpAST.first();
             else nowExp = follows.get(i - 1);
             //  确定目标跳转的TrueBlock和NxtBlock
             if(i != follows.size()){
@@ -341,8 +339,8 @@ public class Visitor {
             visitExpAST(assignAST.getValue(), false);
             f.buildStoreInst(CurValue, pointer, CurBasicBlock);
         }
-        else if(stmtAST instanceof AST.ExpStmt expStmtAST){
-            visitExpAST(expStmtAST.getExp(), false);
+        else if(stmtAST instanceof AST.ExpStmt(AST.Exp exp)){
+            visitExpAST(exp, false);
         }
         else if(stmtAST instanceof AST.Block blockAST){
             pushSymTbl();
@@ -351,22 +349,22 @@ public class Visitor {
             popDimIndexTbl();
             popSymTbl();
         }
-        else if(stmtAST instanceof AST.IfStmt ifStmt){
+        else if(stmtAST instanceof AST.IfStmt(AST.Exp cond, AST.Stmt thenTarget, AST.Stmt elseTarget)){
             BasicBlock TrueBlock = f.buildBasicBlock(CurFunction);
             BasicBlock NxtBlock = f.buildBasicBlock(CurFunction);
             BasicBlock FalseBlock = null;
-            boolean hasElse = (ifStmt.getElseTarget() != null);
+            boolean hasElse = (elseTarget != null);
             if(hasElse){
                 FalseBlock = f.buildBasicBlock(CurFunction);
-                visitLOrExpAST(ifStmt.getCond(), TrueBlock, FalseBlock);
+                visitLOrExpAST(cond, TrueBlock, FalseBlock);
             }
             else{
-                visitLOrExpAST(ifStmt.getCond(), TrueBlock, NxtBlock);
+                visitLOrExpAST(cond, TrueBlock, NxtBlock);
             }
             //  VisitCondAST之后，CurBlock的br已经构建完并指向正确的Block
             //  接下来我们为TrueBlock填写指令
             CurBasicBlock = TrueBlock;
-            visitStmtAST(ifStmt.getThenTarget());
+            visitStmtAST(thenTarget);
 
             //  下面先考虑ifStmt中CurBlock不发生变化的情况
             //  即TrueBlock没有被构建br指令
@@ -375,17 +373,17 @@ public class Visitor {
             //  而且是没有终结的状态，因此我们下面两行代码也可以适用于这种情况,令其跳转
             f.buildBrInst(NxtBlock, CurBasicBlock);
 
-            if(ifStmt.getElseTarget() != null){
+            if(elseTarget != null){
                 //  开始构建FalseBlock
                 CurBasicBlock = FalseBlock;
-                visitStmtAST(ifStmt.getElseTarget());
+                visitStmtAST(elseTarget);
 
                 //  原理同上，为CurBLock构建Br指令
                 f.buildBrInst(NxtBlock, CurBasicBlock);
             }
             CurBasicBlock = NxtBlock;
         }
-        else if(stmtAST instanceof AST.WhileStmt whileStmt){
+        else if(stmtAST instanceof AST.WhileStmt(AST.Exp cond, AST.Stmt body)){
             //  构建要跳转的CurCondBlock
             BasicBlock CondBlock = f.buildBasicBlock(CurFunction);
             f.buildBrInst(CondBlock, CurBasicBlock);
@@ -397,16 +395,16 @@ public class Visitor {
             whileEntryBLocks.add(CondBlock);
             whileOutBlocks.add(FalseBlock);
 
-            visitLOrExpAST(whileStmt.getCond(), TrueBlock, FalseBlock);
+            visitLOrExpAST(cond, TrueBlock, FalseBlock);
 
             CurBasicBlock = TrueBlock;
-            visitStmtAST(whileStmt.getBody());
+            visitStmtAST(body);
             f.buildBrInst(CondBlock, CurBasicBlock);
             CurBasicBlock = FalseBlock;
 
             //  while内的指令构建完了，出栈
-            whileEntryBLocks.remove(whileEntryBLocks.size() - 1);
-            whileOutBlocks.remove(whileOutBlocks.size() - 1);
+            whileEntryBLocks.removeLast();
+            whileOutBlocks.removeLast();
         }
         else if(stmtAST instanceof AST.Break){
             if(whileOutBlocks.isEmpty()) return;
@@ -445,25 +443,7 @@ public class Visitor {
                 //  TODO ！！！常量数组的优化！！！
             }
             else if(init instanceof AST.InitArray newInitArray){
-                ArrayList<Integer> newIndexs = new ArrayList<>();
-                int start = 0;
-                if(curNum == 0){
-                    start = 1;
-                }
-                else{
-                    int tmpMul = 1;
-                    for(int i = indexs.size() - 1; i >= 0; i--){
-                        tmpMul *= indexs.get(i);
-                        if(curNum % tmpMul != 0){
-                            start = i + 1;
-                            break;
-                        }
-                    }
-                }
-
-                for(int i = start; i < indexs.size(); i++){
-                    newIndexs.add(indexs.get(i));
-                }
+                ArrayList<Integer> newIndexs = getIntegers(indexs, curNum);
                 ArrayList<Value> newValues = visitInitArray(newIndexs, newInitArray, fillValue, isConst);
                 values.addAll(newValues);
                 curNum += newValues.size();
@@ -477,12 +457,35 @@ public class Visitor {
         return values;
     }
 
+    private static ArrayList<Integer> getIntegers(ArrayList<Integer> indexs, int curNum) {
+        ArrayList<Integer> newIndexs = new ArrayList<>();
+        int start = 0;
+        if(curNum == 0){
+            start = 1;
+        }
+        else{
+            int tmpMul = 1;
+            for(int i = indexs.size() - 1; i >= 0; i--){
+                tmpMul *= indexs.get(i);
+                if(curNum % tmpMul != 0){
+                    start = i + 1;
+                    break;
+                }
+            }
+        }
+
+        for(int i = start; i < indexs.size(); i++){
+            newIndexs.add(indexs.get(i));
+        }
+        return newIndexs;
+    }
+
     private void visitConstDef(AST.Def def, Type type, boolean isGlobal){
-        String ident = def.getIdent();
-        AST.Init init = def.getInit();
+        String ident = def.ident();
+        AST.Init init = def.init();
         //  常量数组
-        if (def.indexes.size() != 0) {
-            visitArray(ident, init, def.indexes, type, isGlobal, true);
+        if (!def.indexes().isEmpty()) {
+            visitArray(ident, init, def.indexes(), type, isGlobal, true);
         }
         //  普通常量
         else {
@@ -499,13 +502,13 @@ public class Visitor {
     }
 
     private void visitVarDef(AST.Def def, Type type ,boolean isGlobal){
-        String ident = def.getIdent();
-        AST.Init init = def.getInit();
+        String ident = def.ident();
+        AST.Init init = def.init();
         Value fillValue = (type == IntegerType.I32 ? f.buildNumber(0) : f.buildNumber((float) 0.0));
 
         //  数组
-        if(!def.indexes.isEmpty()){
-            visitArray(ident, init, def.indexes, type, isGlobal, false);
+        if(!def.indexes().isEmpty()){
+            visitArray(ident, init, def.indexes(), type, isGlobal, false);
         }
         //  普通变量
         else{
@@ -586,9 +589,9 @@ public class Visitor {
     }
 
     private void visitDeclAST(AST.Decl declAST, boolean isGlobal){
-        boolean isConst = declAST.isConstant();
+        boolean isConst = declAST.constant();
         String typeStr = declAST.getBType();
-        ArrayList<AST.Def> defs = declAST.getDefs();
+        ArrayList<AST.Def> defs = declAST.defs();
 
         for (AST.Def def : defs) {
             Type type = null;
@@ -609,15 +612,15 @@ public class Visitor {
     }
 
     private void visitBlockAST(AST.Block blockAST){
-        ArrayList<AST.BlockItem> blockItemASTS = blockAST.getItems();
+        ArrayList<AST.BlockItem> blockItemASTS = blockAST.items();
         for(AST.BlockItem blockItemAST : blockItemASTS){
             visitBlockItemAST(blockItemAST);
         }
     }
 
     private void visitFuncDefAST(AST.FuncDef funcDefAST) {
-        String ident = funcDefAST.getIdent();
-        String type = funcDefAST.getType();
+        String ident = funcDefAST.ident();
+        String type = funcDefAST.type();
         CurFunction = f.buildFunction(ident, type, module);
 
         pushSymbol(ident, CurFunction);
@@ -626,18 +629,18 @@ public class Visitor {
         pushSymTbl();
         pushDimIndexTbl();
         CurBasicBlock = f.buildBasicBlock(CurFunction);
-        if(funcDefAST.getFParams().size() > 0){
+        if(!funcDefAST.getFParams().isEmpty()){
             //  开始构建entry基本块
             ArrayList<AST.FuncFParam> funcFParams = funcDefAST.getFParams();
             for(AST.FuncFParam funcFParam : funcFParams){
                 //  平平无奇的起名环节
-                String argName = funcFParam.getIdent();
+                String argName = funcFParam.ident();
                 String argType = funcFParam.getBType();
                 Argument argument;
-                if(funcFParam.array){
+                if(funcFParam.array()){
                     ArrayList<Integer> dimIndexs = new ArrayList<>();
                     dimIndexs.add(1);
-                    for (AST.Exp exp : funcFParam.getSizes()) {
+                    for (AST.Exp exp : funcFParam.sizes()) {
                         visitExpAST(exp, true);
                         dimIndexs.add(((ConstInteger) CurValue).getValue());
                     }
@@ -657,7 +660,7 @@ public class Visitor {
             CurBasicBlock = TmpBasicBlock;
         }
 
-        visitBlockAST(funcDefAST.getBody());
+        visitBlockAST(funcDefAST.body());
 
         popSymTbl();
         popDimIndexTbl();
@@ -667,21 +670,7 @@ public class Visitor {
         while (itBbNode != null){
             BasicBlock bb = itBbNode.getValue();
             itBbNode = itBbNode.getNext();
-            boolean isTerminal = false;
-            IList.INode<Instruction, BasicBlock> itInstNode = bb.getInsts().getHead();
-
-            while (itInstNode != null){
-                Instruction inst = itInstNode.getValue();
-                itInstNode = itInstNode.getNext();
-                if (isTerminal){
-                    inst.removeSelf();
-                }
-                else{
-                    if(inst instanceof RetInst || inst instanceof BrInst){
-                        isTerminal = true;
-                    }
-                }
-            }
+            boolean isTerminal = isTerminal(bb);
 
             // 如果没有ret语句，构建一个ret void
             if(!isTerminal){
@@ -692,6 +681,25 @@ public class Visitor {
                 else if(CurFunction.getType().isFloatTy()) f.buildRetInst(f.buildNumber((float) 0.0), CurBasicBlock);
             }
         }
+    }
+
+    private static boolean isTerminal(BasicBlock bb) {
+        boolean isTerminal = false;
+        IList.INode<Instruction, BasicBlock> itInstNode = bb.getInsts().getHead();
+
+        while (itInstNode != null){
+            Instruction inst = itInstNode.getValue();
+            itInstNode = itInstNode.getNext();
+            if (isTerminal){
+                inst.removeSelf();
+            }
+            else{
+                if(inst instanceof RetInst || inst instanceof BrInst){
+                    isTerminal = true;
+                }
+            }
+        }
+        return isTerminal;
     }
 
     private void initLibFunc(){
@@ -752,7 +760,7 @@ public class Visitor {
         pushSymTbl();
         pushDimIndexTbl();
 
-        for (AST.CompUnit compUnit : compAST.getUnits()) {
+        for (AST.CompUnit compUnit : compAST.units()) {
             if (compUnit instanceof AST.FuncDef funcDefAST) {
                 visitFuncDefAST(funcDefAST);
             }
