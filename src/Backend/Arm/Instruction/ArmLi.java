@@ -36,8 +36,9 @@ public class ArmLi extends ArmInstruction {
     public String toString() {
         if (getOperands().get(0) instanceof ArmLabel) {
             // ARMv8-A: Use adrp/add for label addresses
-            return "adrp\t" + getDefReg() + ",\t" + getOperands().get(0) + "\n\t" +
-                    "add\t" + getDefReg() + ",\t" + getDefReg() + ",\t:lo12:" + getOperands().get(0);
+            String labelName = ((ArmLabel) getOperands().get(0)).getName();
+            return "adrp\t" + getDefReg() + ",\t" + labelName + "\n\t" +
+                    "add\t" + getDefReg() + ",\t" + getDefReg() + ",\t:lo12:" + labelName;
 
         } else {
             assert getOperands().get(0) instanceof ArmImm;
@@ -46,11 +47,21 @@ public class ArmLi extends ArmInstruction {
             
             // For small immediates that can be encoded directly
             if (value >= 0 && value <= 0xFFF) {
-                return "mov" + ArmTools.getCondString(condType) + "\t"
-                        + getDefReg() + ",\t#" + value;
+                if (condType == ArmTools.CondType.nope) {
+                    return "mov\t" + getDefReg() + ",\t#" + value;
+                } else {
+                    // ARMv8-A: Use csel for conditional moves
+                    return "mov\tx16,\t#" + value + "\n" +
+                           "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
+                }
             } else if (value < 0 && value >= -0xFFF) {
-                return "mov" + ArmTools.getCondString(condType) + "\t"
-                        + getDefReg() + ",\t#" + value;
+                if (condType == ArmTools.CondType.nope) {
+                    return "mov\t" + getDefReg() + ",\t#" + value;
+                } else {
+                    // ARMv8-A: Use csel for conditional moves
+                    return "mov\tx16,\t#" + value + "\n" +
+                           "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
+                }
             } else {
                 // ARMv8-A: Use mov/movk for large immediates
                 StringBuilder result = new StringBuilder();

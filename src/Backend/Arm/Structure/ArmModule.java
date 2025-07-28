@@ -61,7 +61,7 @@ public class ArmModule {
                 sb.append(globalVariable.dump());
             }
         }
-        sb.append(".text\n.arm\n");
+        sb.append(".text\n");
         for(ArmFunction function:functions.values()){
             if(function.getName().equals("main")){
                 sb.append(function.dump());

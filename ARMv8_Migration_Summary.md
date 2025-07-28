@@ -55,7 +55,32 @@
 ### 6. 64位除法库函数
 - `__aeabi_ldivmod` → `__divti3` (AArch64 128位除法函数)
 
-### 7. 汇编指令头部更新 (ArmModule.java)
+### 7. Assembler Errors Fixed
+
+The following assembler errors were identified and fixed in generated ARMv8-A code:
+
+### 7.1 Unknown pseudo-op: `.arm`
+- **Problem**: ARMv8-A assembler doesn't recognize `.arm` directive
+- **Solution**: Removed `.arm` from ArmModule.java header
+- **Status**: ✅ Fixed
+
+### 7.2 Conditional move instructions (`movle`, `movgt`)
+- **Problem**: ARMv8-A doesn't support conditional move instructions
+- **Solution**: Replaced with `csel` (conditional select) in ArmLi.java
+- **Status**: ✅ Fixed
+
+### 7.3 Label formatting for adrp/add instructions
+- **Problem**: Incorrect label format in adrp instruction
+- **Solution**: Updated ArmLi.java to use correct ARMv8-A label format
+- **Status**: ✅ Fixed
+
+### 7.4 Logical immediate encoding
+- **Problem**: Large immediates not valid for and/orr/eor instructions
+- **Solution**: Added isLogicalImmediate check in ArmTools.java and updated all logical operations in ArmCodeGen.java
+- **Files modified**: ArmTools.java, ArmCodeGen.java (parseAnd, parseOr, parseXor)
+- **Status**: ✅ Fixed
+
+## 8. Remaining Tasks
 - **架构声明**: `.arch armv7ve` → `.arch armv8-a`
 - **浮点单元**: 移除 `.fpu vfpv3-d16`（ARMv8-A内置SIMD&FP）
 - **数据对齐**: `.align 4` → `.align 8` (64位对齐)

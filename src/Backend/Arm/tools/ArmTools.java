@@ -43,6 +43,26 @@ public class ArmTools {
         return offset >= 0 && offset <= maxOffset && (offset % elementSize == 0);
     }
 
+    // ARMv8-A: Check if immediate can be encoded as logical immediate (for AND, ORR, EOR)
+    public static boolean isLogicalImmediate(long value) {
+        // ARMv8-A logical immediates must be a repetition of a pattern
+        // This is a simplified check - full implementation would be more complex
+        if (value == 0 || value == -1) return false;
+        
+        // Check for common patterns
+        long[] commonPatterns = {
+            0x00FF00FF00FF00FFL, 0x0F0F0F0F0F0F0F0FL, 0x3333333333333333L,
+            0x5555555555555555L, 0x7777777777777777L, 0x7FFFFFFFFFFFFFFFL,
+            0xFFFE, 0xFFFC, 0xFFF8, 0xFFF0, 0xFFE0, 0xFFC0, 0xFF80, 0xFF00
+        };
+        
+        for (long pattern : commonPatterns) {
+            if (value == pattern) return true;
+        }
+        
+        return false;
+    }
+
     public enum CondType {
         eq,  // ==
         ne,  // !=

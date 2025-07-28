@@ -696,7 +696,8 @@ public class ArmCodeGen {
                 ArmMv mv = new ArmMv(left, resReg);
                 addInstr(mv, insList, predefine);
             } else {
-                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getValue())) {
+                // ARMv8-A: Check if it's a valid logical immediate for AND instruction
+                if (ArmTools.isLogicalImmediate(((ArmImm) right).getValue())) {
                     ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(left,
                             new ArmImm(((ArmImm) right).getValue()))), resReg,
                             ArmBinary.ArmBinaryType.and);
@@ -740,7 +741,7 @@ public class ArmCodeGen {
                 addInstr(mv, insList, predefine);
             } else {
                 //TODO: 是否能换成减法呢
-                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getValue())) {
+                if (ArmTools.isLogicalImmediate(((ArmImm) right).getValue())) {
                     ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(left,
                             new ArmImm(((ArmImm) right).getValue()))), resReg,
                             ArmBinary.ArmBinaryType.orr);
@@ -784,7 +785,7 @@ public class ArmCodeGen {
                 addInstr(mv, insList, predefine);
             } else {
                 //TODO: 是否能换成减法呢
-                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getValue())) {
+                if (ArmTools.isLogicalImmediate(((ArmImm) right).getValue())) {
                     ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(left,
                             new ArmImm(((ArmImm) right).getValue()))), resReg,
                             ArmBinary.ArmBinaryType.eor);
