@@ -6,11 +6,32 @@ import static java.lang.Math.abs;
 
 public class ArmTools {
     public static boolean isArmImmCanBeEncoded(int imme) {
-        for (int shift = 0; shift <= 32; shift += 2) {
-            if ((((imme << shift) | (imme >>> (32 - shift))) & ~0xff) == 0) {
+        // ARM64 immediate encoding rules:
+        // 1. For arithmetic instructions (add/sub): 12-bit unsigned immediate (0-4095)
+        //    optionally shifted left by 12 bits (giving range 0-16773120 in steps of 4096)
+        // 2. For logical instructions: more complex pattern-based encoding
+        
+        // Check if it's a simple 12-bit immediate
+        if (imme >= 0 && imme <= 4095) {
+            return true;
+        }
+        
+        // Check if it's a 12-bit immediate shifted by 12
+        if ((imme & 0xFFF) == 0 && (imme >>> 12) >= 0 && (imme >>> 12) <= 4095) {
+            return true;
+        }
+        
+        // For negative values, check if the positive value can be encoded
+        if (imme < 0) {
+            int pos = -imme;
+            if (pos >= 0 && pos <= 4095) {
+                return true;
+            }
+            if ((pos & 0xFFF) == 0 && (pos >>> 12) >= 0 && (pos >>> 12) <= 4095) {
                 return true;
             }
         }
+        
         return false;
     }
 
@@ -34,11 +55,13 @@ public class ArmTools {
 
     // ARMv8-A: Check if offset is valid for ldr/str immediate (unscaled)
     public static boolean isLegalLoadStoreImm(int offset) {
+        // ARM64 unscaled immediate: -256 to +255
         return offset >= -256 && offset <= 255;
     }
 
     // ARMv8-A: Check if offset is valid for ldr/str immediate (scaled)
     public static boolean isLegalLoadStoreScaledImm(int offset, int elementSize) {
+        // ARM64 scaled immediate: 0 to +4095*elementSize, must be multiple of elementSize
         int maxOffset = 4095 * elementSize;
         return offset >= 0 && offset <= maxOffset && (offset % elementSize == 0);
     }

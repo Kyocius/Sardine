@@ -825,16 +825,20 @@ public class ArmCodeGen {
                 addInstr(rev, insList, predefine);
             } else {
                 if (ArmTools.isArmImmCanBeEncoded(((ArmImm) left).getValue())) {
-                    ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(right,
-                            new ArmImm(((ArmImm) left).getValue()))), resReg,
-                            ArmBinary.ArmBinaryType.rsb);
+                    // For rsb (reverse subtract), we need to compute left - right
+                    // In ARM64, use sub with operands swapped: sub res, left_reg, right_reg
+                    ArmReg assistReg = getNewIntReg();
+                    ArmLi li = new ArmLi(new ArmImm(((ArmImm) left).getValue()), assistReg);
+                    addInstr(li, insList, predefine);
+                    ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(assistReg, right)), resReg,
+                            ArmBinary.ArmBinaryType.sub);
                     addInstr(binary, insList, predefine);
                 } else {
                     ArmReg assistReg = getNewIntReg();
                     ArmLi li = new ArmLi(new ArmImm(((ArmImm) left).getValue()), assistReg);
                     addInstr(li, insList, predefine);
-                    ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(right, assistReg)), resReg,
-                            ArmBinary.ArmBinaryType.rsb);
+                    ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(assistReg, right)), resReg,
+                            ArmBinary.ArmBinaryType.sub);
                     addInstr(binary, insList, predefine);
                 }
             }
@@ -1180,13 +1184,12 @@ public class ArmCodeGen {
             }
             if (ptr2Offset.containsKey(storeInst.getPointer())) {
                 int offset = ptr2Offset.get(storeInst.getPointer());
-                // ARMv8-A: ldr/str immediate offset range is -256 to +255 (unscaled)
-                // or 0 to +32760 (scaled, multiple of 8 for 64-bit)
-                if (offset >= -256 && offset <= 255 &&
+                // Use ARM64-compliant range checks
+                if (ArmTools.isLegalLoadStoreImm(offset) &&
                         !((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
                     ArmSw armSw = new ArmSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                     addInstr(armSw, insList, predefine);
-                } else if (offset >= 0 && offset <= 32760 && (offset % 8 == 0)
+                } else if (ArmTools.isLegalVLoadStoreImm(offset)
                         && ((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
                     ArmFSw fsw = new ArmFSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                     addInstr(fsw, insList, predefine);
@@ -1228,7 +1231,7 @@ public class ArmCodeGen {
                 parseAlloc((AllocInst) storeInst.getPointer(), true);
             }
             int offset = curArmFunction.getOffset(storeInst.getPointer()) * -1;
-            if (offset <= 4095 && offset >= -4095 &&
+            if (ArmTools.isLegalLoadStoreImm(offset) &&
                     !((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
                 ArmSw armSw = new ArmSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                 addInstr(armSw, insList, predefine);
@@ -1281,7 +1284,7 @@ public class ArmCodeGen {
             }
             if (ptr2Offset.containsKey(loadInst.getPointer())) {
                 int offset = ptr2Offset.get(loadInst.getPointer());
-                if (offset <= 4095 && offset >= -4095 &&
+                if (ArmTools.isLegalLoadStoreScaledImm(offset, 4) &&
                         !((PointerType) loadInst.getPointer().getType()).getEleType().isFloatTy()) {
                     resReg = getResReg(loadInst, ArmVirReg.RegType.intType);
                     ArmLoad lw = new ArmLoad(ArmCPUReg.getArmSpReg(), new ArmImm(offset), resReg);
@@ -1336,7 +1339,7 @@ public class ArmCodeGen {
                 parseAlloc((AllocInst) loadInst.getPointer(), true);
             }
             int offset = curArmFunction.getOffset(loadInst.getPointer()) * -1;
-            if (offset <= 4095 && offset >= -4095 &&
+            if (ArmTools.isLegalLoadStoreScaledImm(offset, 4) &&
                     !((PointerType) loadInst.getPointer().getType()).getEleType().isFloatTy()) {
                 resReg = getResReg(loadInst, ArmVirReg.RegType.intType);
                 ArmLoad lw = new ArmLoad(ArmCPUReg.getArmSpReg(), new ArmImm(offset), resReg);

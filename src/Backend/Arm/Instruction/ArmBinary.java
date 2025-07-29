@@ -84,7 +84,7 @@ public class ArmBinary extends ArmInstruction {
                 return "sub";
             }
             case rsb -> {
-                return "rsb";
+                return "sub";  // ARMv8-A uses sub instead of rsb
             }
             case mul -> {
                 return "mul";

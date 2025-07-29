@@ -4,3 +4,7 @@
 *.s
 *.sy
 *.class
+
+/tests_old/
+/scripts/results
+/testcases/
