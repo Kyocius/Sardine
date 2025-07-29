@@ -1327,11 +1327,11 @@ public class ArmCodeGen {
                     addInstr(li, insList, predefine);
                     if (!((PointerType) loadInst.getPointer().getType()).getEleType().isFloatTy()) {
                         resReg = getResReg(loadInst, ArmVirReg.RegType.intType);
-                        ArmLoad lw = new ArmLoad(assistReg, ArmCPUReg.getArmSpReg(), resReg);
+                        ArmLoad lw = new ArmLoad(ArmCPUReg.getArmSpReg(), assistReg, resReg);
                         addInstr(lw, insList, predefine);
                     } else {
                         resReg = getResReg(loadInst, ArmVirReg.RegType.floatType);
-                        ArmVLoad flw = new ArmVLoad(assistReg, ArmCPUReg.getArmSpReg(), resReg);
+                        ArmVLoad flw = new ArmVLoad(ArmCPUReg.getArmSpReg(), assistReg, resReg);
                         addInstr(flw, insList, predefine);
                     }
                 }
