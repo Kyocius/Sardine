@@ -333,6 +333,33 @@ public class ArmCodeGen {
             BasicBlock bb = basicBlockNode.getValue();
             curArmBlock = (ArmBlock) value2Label.get(bb);
             if (!flag) {
+                // ARM64: Allocate stack space at function start
+                int stackSize = curArmFunction.getStackPosition();
+                if (stackSize > 0) {
+                    // Align stack size to 16 bytes
+                    stackSize = (stackSize + 15) & ~15;
+                    if (stackSize <= 4095) {
+                        // Can use immediate
+                        ArmBinary stackAlloc = new ArmBinary(
+                            new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(stackSize))),
+                            ArmCPUReg.getArmSpReg(),
+                            ArmBinary.ArmBinaryType.sub
+                        );
+                        addInstr(stackAlloc, null, false);
+                    } else {
+                        // Use register for large stack allocation
+                        ArmReg assistReg = getNewIntReg();
+                        ArmLi li = new ArmLi(new ArmImm(stackSize), assistReg);
+                        addInstr(li, null, false);
+                        ArmBinary stackAlloc = new ArmBinary(
+                            new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), assistReg)),
+                            ArmCPUReg.getArmSpReg(),
+                            ArmBinary.ArmBinaryType.sub
+                        );
+                        addInstr(stackAlloc, null, false);
+                    }
+                }
+                
                 //将所有函数中的用于参数的mv指令加入Block
                 for (ArmMv armMv : curArmFunction.getMvs()) {
                     addInstr(armMv, null, false);

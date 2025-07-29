@@ -45,7 +45,7 @@ class QEMUARMv8TestRunner:
         # QEMU和交叉编译工具链设置
         self.qemu_cmd = "qemu-aarch64-static"  # 用户模式QEMU，更简单
         self.cross_as = "aarch64-linux-gnu-as"
-        self.cross_ld = "aarch64-linux-gnu-ld"
+        self.cross_gcc = "aarch64-linux-gnu-gcc"  # 使用GCC进行链接
 
         # ARM Cortex-A53 MPCore 配置
         self.qemu_cpu = "cortex-a53"
@@ -87,7 +87,7 @@ class QEMUARMv8TestRunner:
         wsl_commands = [
             f"which {self.qemu_cmd}",
             f"which {self.cross_as}",
-            f"which {self.cross_ld}",
+            f"which {self.cross_gcc}",
         ]
 
         for cmd in wsl_commands:
@@ -190,8 +190,8 @@ class QEMUARMv8TestRunner:
             if result.returncode != 0:
                 return False, f"汇编失败: {result.stderr}"
 
-            # 链接，使用libsysy_arm.a静态库
-            ld_cmd = f"cd {wsl_project_root} && {self.cross_ld} -o {wsl_exe_file} {wsl_obj_file} {wsl_libsysy_arm}"
+            # 链接，使用GCC和libsysy_arm.a静态库
+            ld_cmd = f"cd {wsl_project_root} && {self.cross_gcc} -static -o {wsl_exe_file} {wsl_obj_file} {wsl_libsysy_arm}"
             result = subprocess.run(
                 ["wsl", "bash", "-c", ld_cmd],
                 capture_output=True,

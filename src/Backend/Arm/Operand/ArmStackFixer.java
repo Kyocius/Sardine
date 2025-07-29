@@ -16,8 +16,15 @@ public class ArmStackFixer extends ArmImm {
     @Override
     public int getValue() {
         if (function.getStackPosition() == 0) return offset;
-        else return function.getStackPosition() - 1 -
-                (function.getStackPosition() - 1) % 16 + 16 + offset;
+        else {
+            // ARM64: Use positive offset from stack pointer (after stack allocation)
+            int stackFrameSize = function.getStackPosition() - 1 -
+                    (function.getStackPosition() - 1) % 16 + 16;
+            // Align to 16 bytes
+            stackFrameSize = (stackFrameSize + 15) & ~15;
+            return stackFrameSize - (function.getStackPosition() - 1 -
+                    (function.getStackPosition() - 1) % 16 + 16 + offset);
+        }
     }
 
     @Override
