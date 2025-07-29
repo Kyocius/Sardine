@@ -333,6 +333,15 @@ public class ArmCodeGen {
             BasicBlock bb = basicBlockNode.getValue();
             curArmBlock = (ArmBlock) value2Label.get(bb);
             if (!flag) {
+                // AArch64 function prologue: save frame pointer and link register
+                ArmStp prologue = new ArmStp(ArmCPUReg.getArmCPUReg(29), ArmCPUReg.getArmRetReg(), 
+                                           ArmCPUReg.getArmSpReg(), new ArmImm(-16), true);
+                addInstr(prologue, null, false);
+                
+                // Set frame pointer
+                ArmMv setFP = new ArmMv(ArmCPUReg.getArmSpReg(), ArmCPUReg.getArmCPUReg(29));
+                addInstr(setFP, null, false);
+                
                 // ARM64: Allocate stack space at function start
                 int stackSize = curArmFunction.getStackPosition();
                 if (stackSize > 0) {
@@ -1440,8 +1449,12 @@ public class ArmCodeGen {
                 }
             }
         }
-        // jr ra
-        addInstr(new ArmMv(curArmFunction.getRetReg(), ArmCPUReg.getArmRetReg()), insList, predefine);
+        // AArch64 function epilogue: restore frame pointer and link register
+        ArmLdp epilogue = new ArmLdp(ArmCPUReg.getArmCPUReg(29), ArmCPUReg.getArmRetReg(),
+                                    ArmCPUReg.getArmSpReg(), new ArmImm(16), true);
+        addInstr(epilogue, insList, predefine);
+        
+        // Return
         addInstr(new ArmRet(ArmCPUReg.getArmRetReg(), retUsedReg), insList, predefine);
     }
 
