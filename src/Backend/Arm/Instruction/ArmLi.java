@@ -37,61 +37,70 @@ public class ArmLi extends ArmInstruction {
         if (getOperands().get(0) instanceof ArmLabel) {
             // ARMv8-A: Use adrp/add for label addresses
             String labelName = ((ArmLabel) getOperands().get(0)).getName();
-            return "adrp\t" + getDefReg() + ",\t" + labelName + "\n\t" +
-                    "add\t" + getDefReg() + ",\t" + getDefReg() + ",\t:lo12:" + labelName;
-
+            if (condType == ArmTools.CondType.nope) {
+                return "adrp\t" + getDefReg() + ",\t" + labelName + "\n\t" +
+                        "add\t" + getDefReg() + ",\t" + getDefReg() + ",\t:lo12:" + labelName;
+            } else {
+                // For conditional label loading, use temporary register
+                return "adrp\tx16,\t" + labelName + "\n\t" +
+                        "add\tx16,\tx16,\t:lo12:" + labelName + "\n\t" +
+                        "csel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
+            }
         } else {
             assert getOperands().get(0) instanceof ArmImm;
             ArmImm imm = (ArmImm) getOperands().get(0);
             long value = imm.getValue();
             
-            // For small immediates that can be encoded directly
-            if (value >= 0 && value <= 0xFFF) {
+            // Strategy 1: Try mov with logical immediate (most efficient)
+            if (ArmTools.isLogicalImmediate(value)) {
+                return "mov\t" + getDefReg() + ",\t#" + value;
+            }
+            
+            // Strategy 2: Small immediates (0-65535)
+            if (value >= 0 && value <= 0xFFFF) {
                 if (condType == ArmTools.CondType.nope) {
                     return "mov\t" + getDefReg() + ",\t#" + value;
                 } else {
-                    // ARMv8-A: Use csel for conditional moves
                     return "mov\tx16,\t#" + value + "\n" +
                            "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
                 }
-            } else if (value < 0 && value >= -0xFFF) {
+            } 
+            
+            // Strategy 3: Negative immediates (-65535 to -1)
+            else if (value < 0 && value >= -0xFFFF) {
                 if (condType == ArmTools.CondType.nope) {
                     return "mov\t" + getDefReg() + ",\t#" + value;
                 } else {
-                    // ARMv8-A: Use csel for conditional moves
                     return "mov\tx16,\t#" + value + "\n" +
                            "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
                 }
-            } else {
-                // ARMv8-A: Use mov/movk for large immediates
+            } 
+            
+            // Strategy 4: Try movn (move not) for inverted values
+            else if ((~value & 0xFFFFFFFFFFFFL) <= 0xFFFF) {
+                long inverted = ~value & 0xFFFF;
+                return "movn\t" + getDefReg() + ",\t#" + inverted;
+            }
+            
+            // Strategy 5: Multi-instruction sequence for large values
+            else {
                 StringBuilder result = new StringBuilder();
+                boolean first = true;
                 
-                // Load lower 16 bits
-                int lowerBits = (int)(value & 0xFFFF);
-                result.append("mov").append(ArmTools.getCondString(condType))
-                      .append("\t").append(getDefReg()).append(",\t#").append(lowerBits);
-                
-                // Load upper bits if needed
-                if ((value >>> 16) != 0) {
-                    int upperBits = (int)((value >>> 16) & 0xFFFF);
-                    if (upperBits != 0) {
-                        result.append("\n\tmovk\t").append(getDefReg())
-                              .append(",\t#").append(upperBits).append(", lsl #16");
-                    }
-                }
-                
-                // For 64-bit values, handle higher bits
-                if ((value >>> 32) != 0) {
-                    int bits32_47 = (int)((value >>> 32) & 0xFFFF);
-                    if (bits32_47 != 0) {
-                        result.append("\n\tmovk\t").append(getDefReg())
-                              .append(",\t#").append(bits32_47).append(", lsl #32");
-                    }
-                    
-                    int bits48_63 = (int)((value >>> 48) & 0xFFFF);
-                    if (bits48_63 != 0) {
-                        result.append("\n\tmovk\t").append(getDefReg())
-                              .append(",\t#").append(bits48_63).append(", lsl #48");
+                // Process 16-bit chunks
+                for (int shift = 0; shift < 64; shift += 16) {
+                    int chunk = (int)((value >>> shift) & 0xFFFF);
+                    if (chunk != 0) {
+                        if (first) {
+                            result.append("mov\t").append(getDefReg()).append(",\t#").append(chunk);
+                            if (shift > 0) {
+                                result.append(",\tlsl #").append(shift);
+                            }
+                            first = false;
+                        } else {
+                            result.append("\n\tmovk\t").append(getDefReg())
+                                  .append(",\t#").append(chunk).append(",\tlsl #").append(shift);
+                        }
                     }
                 }
                 

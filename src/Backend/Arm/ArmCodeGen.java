@@ -373,8 +373,8 @@ public class ArmCodeGen {
                 for (ArmMv armMv : curArmFunction.getMvs()) {
                     addInstr(armMv, null, false);
                 }
-                //处理返回地址
-                ArmMv mv = new ArmMv(ArmCPUReg.getArmRetReg(), curArmFunction.getRetReg());
+                //处理返回地址寄存器保存 (链接寄存器x30 -> 虚拟寄存器)
+                ArmMv mv = new ArmMv(curArmFunction.getRetReg(), ArmCPUReg.getArmRetReg());
                 addInstr(mv, null, false);
                 flag = true;
             }

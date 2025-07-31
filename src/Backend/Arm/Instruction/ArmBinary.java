@@ -30,25 +30,29 @@ public class ArmBinary extends ArmInstruction {
     }
 
     public enum ArmShiftType {
-        LSL, // #<n> Logical shift left <n> bits. 1 <= <n> <= 31.
-        LSR, // #<n> Logical shift right <n> bits. 1 <= <n> <= 32.
-        ASR, // #<n> Arithmetic shift right <n> bits. 1 <= <n> <= 32.
-        ROR, // #<n> Rotate right <n> bits. 1 <= <n> <= 31.
+        LSL, // #<n> Logical shift left <n> bits. 0 <= <n> <= 63 (AArch64 64-bit)
+        LSR, // #<n> Logical shift right <n> bits. 1 <= <n> <= 64 (AArch64 64-bit)
+        ASR, // #<n> Arithmetic shift right <n> bits. 1 <= <n> <= 64 (AArch64 64-bit)
+        ROR, // #<n> Rotate right <n> bits. 1 <= <n> <= 63 (AArch64 64-bit)
+        MSL, // #<n> Masked shift left (SIMD only)
     }
 
     public String shiftTypeToString() {
         switch (shiftType) {
             case LSL -> {
-                return "LSL";
+                return "lsl";
             }
             case LSR -> {
-                return "LSR";
+                return "lsr";
             }
             case ASR -> {
-                return "ASR";
+                return "asr";
             }
             case ROR -> {
-                return "ROR";
+                return "ror";
+            }
+            case MSL -> {
+                return "msl";
             }
         }
         return null;
@@ -73,6 +77,20 @@ public class ArmBinary extends ArmInstruction {
         vsub,
         vmul,
         vdiv,
+        // AArch64 specific instructions
+        madd,    // multiply-add: rd = rn + rm * ra
+        msub,    // multiply-subtract: rd = ra - rn * rm
+        smaddl,  // signed multiply-add long
+        smsubl,  // signed multiply-subtract long
+        umaddl,  // unsigned multiply-add long
+        umsubl,  // unsigned multiply-subtract long
+        udiv,    // unsigned divide
+        orn,     // bitwise OR NOT
+        bic,     // bitwise bit clear (AND NOT)
+        bics,    // bitwise bit clear and set flags
+        ands,    // bitwise AND and set flags
+        adcs,    // add with carry and set flags
+        sbcs,    // subtract with carry and set flags
     }
 
     public String binaryTypeToString(){
@@ -84,7 +102,9 @@ public class ArmBinary extends ArmInstruction {
                 return "sub";
             }
             case rsb -> {
-                return "sub";  // ARMv8-A uses sub instead of rsb
+                // ARMv8-A: rsb (reverse subtract) needs special handling
+                // Will be handled in toString() method to swap operands
+                return "sub";
             }
             case mul -> {
                 return "mul";
@@ -131,6 +151,46 @@ public class ArmBinary extends ArmInstruction {
             case eor -> {
                 return "eor";
             }
+            // AArch64 specific instructions
+            case madd -> {
+                return "madd";
+            }
+            case msub -> {
+                return "msub";
+            }
+            case smaddl -> {
+                return "smaddl";
+            }
+            case smsubl -> {
+                return "smsubl";
+            }
+            case umaddl -> {
+                return "umaddl";
+            }
+            case umsubl -> {
+                return "umsubl";
+            }
+            case udiv -> {
+                return "udiv";
+            }
+            case orn -> {
+                return "orn";
+            }
+            case bic -> {
+                return "bic";
+            }
+            case bics -> {
+                return "bics";
+            }
+            case ands -> {
+                return "ands";
+            }
+            case adcs -> {
+                return "adcs";
+            }
+            case sbcs -> {
+                return "sbcs";
+            }
         }
         return null;
     }
@@ -144,12 +204,33 @@ public class ArmBinary extends ArmInstruction {
 
     @Override
     public String toString() {
+        // Handle multiply-accumulate instructions (4 operands: rd, rn, rm, ra)
+        if (instType == ArmBinaryType.madd || instType == ArmBinaryType.msub ||
+            instType == ArmBinaryType.smaddl || instType == ArmBinaryType.smsubl ||
+            instType == ArmBinaryType.umaddl || instType == ArmBinaryType.umsubl) {
+            if (getOperands().size() >= 3) {
+                return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
+                        getOperands().get(0) + ",\t" + getOperands().get(1) + ",\t" + getOperands().get(2);
+            }
+        }
+        
         if (shiftBit == 0) {
-            return binaryTypeToString() + "\t" + getDefReg() + "," +
-                    getOperands().get(0) +", " + getOperands().get(1);
+            // Special handling for RSB (reverse subtract): swap operands
+            if (instType == ArmBinaryType.rsb) {
+                return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
+                        getOperands().get(1) + ",\t" + getOperands().get(0);
+            }
+            return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
+                    getOperands().get(0) + ",\t" + getOperands().get(1);
         } else {
-            return binaryTypeToString() + "\t" + getDefReg() + "," +
-                    getOperands().get(0) +", " + getOperands().get(1) + ", " + shiftTypeToString() + " #"
+            // Special handling for RSB with shift: swap operands
+            if (instType == ArmBinaryType.rsb) {
+                return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
+                        getOperands().get(1) + ",\t" + getOperands().get(0) + ",\t" + shiftTypeToString() + " #"
+                        + shiftBit;
+            }
+            return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
+                    getOperands().get(0) + ",\t" + getOperands().get(1) + ",\t" + shiftTypeToString() + " #"
                     + shiftBit;
         }
     }

@@ -1,21 +1,24 @@
 package Backend.Arm.Instruction;
 
 import Backend.Arm.Operand.ArmOperand;
-import Backend.Riscv.Operand.RiscvOperand;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 
 public class ArmCompare extends ArmInstruction {
     private CmpType type;
+    
     public ArmCompare(ArmOperand left, ArmOperand right, CmpType type) {
         super(null, new ArrayList<>(Arrays.asList(left, right)));
         this.type = type;
     }
 
     public enum CmpType {
-        cmp,
-        cmn,
+        cmp,    // compare
+        cmn,    // compare negative
+        ccmp,   // conditional compare (AArch64)
+        ccmn,   // conditional compare negative (AArch64)
+        tst,    // test bits (logical AND and set flags)
     }
 
     public String getCmpTypeStr() {
@@ -26,12 +29,25 @@ public class ArmCompare extends ArmInstruction {
             case cmp -> {
                 return "cmp";
             }
+            case ccmp -> {
+                return "ccmp";
+            }
+            case ccmn -> {
+                return "ccmn";
+            }
+            case tst -> {
+                return "tst";
+            }
         }
         return null;
     }
 
+    public CmpType getType() {
+        return type;
+    }
+
     @Override
     public String toString() {
-        return getCmpTypeStr() + "\t" + getOperands().get(0) + ",\t" + getOperands().get(1) + "\n";
+        return getCmpTypeStr() + "\t" + getOperands().get(0) + ",\t" + getOperands().get(1);
     }
 }

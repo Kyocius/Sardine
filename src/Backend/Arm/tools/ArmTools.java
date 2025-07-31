@@ -87,13 +87,26 @@ public class ArmTools {
     }
 
     public enum CondType {
-        eq,  // ==
-        ne,  // !=
-        lt,  // <  s->signed 有符号
-        le,  // <=
-        gt,  // >
-        ge,   // >=
-        nope
+        eq,   // ==
+        ne,   // !=
+        cs,   // carry set (unsigned >=)
+        cc,   // carry clear (unsigned <)
+        mi,   // minus (negative)
+        pl,   // plus (positive or zero)
+        vs,   // overflow set
+        vc,   // overflow clear
+        hi,   // unsigned higher
+        ls,   // unsigned lower or same
+        ge,   // signed >=
+        lt,   // signed <
+        gt,   // signed >
+        le,   // signed <=
+        al,   // always (default)
+        nv,   // never (reserved)
+        // Aliases
+        hs,   // alias for cs (unsigned >=)
+        lo,   // alias for cc (unsigned <)
+        nope  // no condition
     }
 
     public static String getCondString(ArmTools.CondType type) {
@@ -101,20 +114,50 @@ public class ArmTools {
             case eq -> {
                 return "eq";
             }
-            case lt -> {
-                return "lt";
+            case ne -> {
+                return "ne";
             }
-            case le -> {
-                return "le";
+            case cs, hs -> {
+                return "cs";
             }
-            case gt -> {
-                return "gt";
+            case cc, lo -> {
+                return "cc";
+            }
+            case mi -> {
+                return "mi";
+            }
+            case pl -> {
+                return "pl";
+            }
+            case vs -> {
+                return "vs";
+            }
+            case vc -> {
+                return "vc";
+            }
+            case hi -> {
+                return "hi";
+            }
+            case ls -> {
+                return "ls";
             }
             case ge -> {
                 return "ge";
             }
-            case ne -> {
-                return "ne";
+            case lt -> {
+                return "lt";
+            }
+            case gt -> {
+                return "gt";
+            }
+            case le -> {
+                return "le";
+            }
+            case al -> {
+                return "al";
+            }
+            case nv -> {
+                return "nv";
             }
             case nope -> {
                 return "";

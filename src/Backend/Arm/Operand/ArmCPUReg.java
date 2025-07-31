@@ -4,6 +4,8 @@ import java.util.LinkedHashMap;
 
 public class ArmCPUReg extends ArmPhyReg {
     private static final LinkedHashMap<Integer, String> ArmIntRegNames = new LinkedHashMap<>();
+    private static final LinkedHashMap<Integer, String> ArmIntRegNames32 = new LinkedHashMap<>();
+    
     static {
         // ARMv8-A 64-bit general purpose registers
         ArmIntRegNames.put(0, "x0");
@@ -38,6 +40,12 @@ public class ArmCPUReg extends ArmPhyReg {
         ArmIntRegNames.put(29, "x29"); // Frame pointer
         ArmIntRegNames.put(30, "x30"); // Link register
         ArmIntRegNames.put(31, "sp");  // Stack pointer
+        
+        // ARMv8-A 32-bit general purpose registers (w0-w30, wsp)
+        for (int i = 0; i <= 30; i++) {
+            ArmIntRegNames32.put(i, "w" + i);
+        }
+        ArmIntRegNames32.put(31, "wsp"); // 32-bit stack pointer
     }
 
     private static LinkedHashMap<Integer, ArmCPUReg> armCPURegs = new LinkedHashMap<>();
@@ -45,6 +53,30 @@ public class ArmCPUReg extends ArmPhyReg {
         for (int i = 0; i <= 31; i++) {
             armCPURegs.put(i, new ArmCPUReg(i, ArmIntRegNames.get(i)));
         }
+    }
+
+    private final int index;
+    private final String name;
+    private final boolean is32Bit;
+
+    public ArmCPUReg(int index, String name) {
+        this.index = index;
+        this.name = name;
+        this.is32Bit = name.startsWith("w");
+    }
+
+    // Create 32-bit version of this register
+    public ArmCPUReg to32Bit() {
+        return new ArmCPUReg(index, ArmIntRegNames32.get(index));
+    }
+
+    // Create 64-bit version of this register  
+    public ArmCPUReg to64Bit() {
+        return new ArmCPUReg(index, ArmIntRegNames.get(index));
+    }
+
+    public boolean is32Bit() {
+        return is32Bit;
     }
 
     public boolean canBeReorder(){
@@ -59,14 +91,6 @@ public class ArmCPUReg extends ArmPhyReg {
 
     public static ArmCPUReg getArmCPUReg(int index) {
         return armCPURegs.get(index);
-    }
-
-    private final int index;
-    private final String name;
-
-    public ArmCPUReg(int index, String name) {
-        this.index = index;
-        this.name = name;
     }
 
     public static ArmCPUReg getArmRetReg() {
