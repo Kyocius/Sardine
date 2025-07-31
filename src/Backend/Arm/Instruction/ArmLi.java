@@ -92,12 +92,14 @@ public class ArmLi extends ArmInstruction {
                     int chunk = (int)((value >>> shift) & 0xFFFF);
                     if (chunk != 0) {
                         if (first) {
-                            result.append("mov\t").append(getDefReg()).append(",\t#").append(chunk);
+                            // Use movz for the first non-zero chunk
+                            result.append("movz\t").append(getDefReg()).append(",\t#").append(chunk);
                             if (shift > 0) {
                                 result.append(",\tlsl #").append(shift);
                             }
                             first = false;
                         } else {
+                            // Use movk for subsequent chunks
                             result.append("\n\tmovk\t").append(getDefReg())
                                   .append(",\t#").append(chunk).append(",\tlsl #").append(shift);
                         }

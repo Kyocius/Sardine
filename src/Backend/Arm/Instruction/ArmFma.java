@@ -19,8 +19,9 @@ public class ArmFma extends ArmInstruction {
 
     @Override
     public String toString() {
-        String pre = signed ? "sm" : "";
-        return "\t" + pre + "mla" + "\t" +
+        // AArch64 uses madd instruction for multiply-accumulate
+        // madd Rd, Rn, Rm, Ra: Rd = Ra + (Rn * Rm)
+        return "\tmadd\t" +
                 getDefReg() + ",\t" + getOperands().get(0) + ",\t" + getOperands().get(1) + ",\t" +
                 getOperands().get(2) + "\n";
     }

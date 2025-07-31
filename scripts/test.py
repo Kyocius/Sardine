@@ -8,14 +8,10 @@ QEMU ARMv8-A 功能测试脚本
 import os
 import sys
 import subprocess
-import glob
 import time
 import json
 from pathlib import Path
 import tempfile
-import shutil
-
-isPutch = False  # .out默认与返回值比较，isPutch为True时，与stdout比较
 
 
 class QEMUARMv8TestRunner:
@@ -156,11 +152,6 @@ class QEMUARMv8TestRunner:
         except Exception as e:
             return False, f"编译错误: {str(e)}"
 
-    def create_runtime_lib(self, lib_file):
-        """创建运行时库文件（现在使用静态库libsysy_arm.a，这个函数保留但不使用）"""
-        # 不再需要创建运行时库文件，因为我们使用libsysy_arm.a
-        pass
-
     def assemble_and_link(self, asm_file, exe_file):
         """汇编和链接生成可执行文件"""
         # 转换为WSL路径
@@ -268,23 +259,11 @@ class QEMUARMv8TestRunner:
             with open(in_file, "r", encoding="utf-8") as f:
                 input_data = f.read()
 
-        if isPutch:  # 性.out文件应与输出比较
-            expected_output = ""
-            if out_file.exists():
-                with open(out_file, "r", encoding="utf-8") as f:
-                    expected_output = f.read().strip()
-            return expected_output, input_data
-
-        else:  # .out文件应与返回值比较
-            expected_return = "0\n"  # 默认期望返回0
-            if out_file.exists():
-                with open(out_file, "r", encoding="utf-8") as f:
-                    try:
-                        # 尝试解析文件内容为整数
-                        expected_return = f.read()
-                    except ValueError:
-                        expected_return = "0\n"  # 如果解析失败，默认期望0
-            return expected_return, input_data
+        expected_output = ""
+        if out_file.exists():
+            with open(out_file, "r", encoding="utf-8") as f:
+                expected_output = f.read().strip()
+        return expected_output, input_data
 
     def compare_output(self, actual, expected):
         """比较实际输出和期望输出"""
@@ -348,22 +327,16 @@ class QEMUARMv8TestRunner:
                 result["expected_output"] = expected_output
 
                 # 4. 在QEMU中运行
-                return_code, actual_output, run_error = self.run_qemu(
+                return_code, actual_stdout, run_error = self.run_qemu(
                     exe_file, input_data
                 )
 
-                if isPutch:
-                    result["actual_output"] = actual_output
-                else:
-                    result["actual_output"] = return_code
+                # 拼接实际输出：stdout + "\n" + return_code
+                actual_output = actual_stdout.rstrip() + "\n" + str(return_code)
+                result["actual_output"] = actual_output
 
                 # 5. 比较输出
-                if isPutch:
-                    output_match = self.compare_output(actual_output, expected_output)
-                else:
-                    output_match = self.compare_output(
-                        str(return_code), expected_output
-                    )
+                output_match = self.compare_output(actual_output, expected_output)
                 result["output_match"] = output_match
 
                 if output_match:

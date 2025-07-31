@@ -13,7 +13,8 @@ public class ArmLongMul extends ArmInstruction {
 
     @Override
     public String toString() {
-        return "\tsmmul\t" + getDefReg() +
+        // AArch64: Use smulh for signed multiply high (64-bit result, return high 64 bits)
+        return "smulh\t" + getDefReg() +
                 ",\t" + getOperands().get(0) + ",\t" + getOperands().get(1);
     }
 }
