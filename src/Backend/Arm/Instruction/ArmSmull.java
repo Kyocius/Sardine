@@ -19,7 +19,8 @@ public class ArmSmull extends ArmInstruction {
     @Override
     public String toString() {
         // ARMv8-A signed multiply long (32-bit operands produce 64-bit result)
-        return "@\n\tsmull\t" + defRegs.get(0) + ",\t"
-                +  getOperands().get(0) +  ", " + getOperands().get(1);
+        // Note: In AArch64, smull operates on 32-bit w registers to produce 64-bit x result
+        return "smull\t" + defRegs.get(0) + ",\t"
+                +  getOperands().get(0) +  ",\t" + getOperands().get(1);
     }
 }

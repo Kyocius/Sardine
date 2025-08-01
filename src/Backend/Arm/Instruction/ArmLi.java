@@ -53,11 +53,16 @@ public class ArmLi extends ArmInstruction {
             
             // Strategy 1: Try mov with logical immediate (most efficient)
             if (ArmTools.isLogicalImmediate(value)) {
-                return "mov\t" + getDefReg() + ",\t#" + value;
+                if (condType == ArmTools.CondType.nope) {
+                    return "mov\t" + getDefReg() + ",\t#" + value;
+                } else {
+                    return "mov\tx16,\t#" + value + "\n" +
+                           "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
+                }
             }
             
             // Strategy 2: Small immediates (0-65535)
-            if (value >= 0 && value <= 0xFFFF) {
+            else if (value >= 0 && value <= 0xFFFF) {
                 if (condType == ArmTools.CondType.nope) {
                     return "mov\t" + getDefReg() + ",\t#" + value;
                 } else {
@@ -66,7 +71,7 @@ public class ArmLi extends ArmInstruction {
                 }
             } 
             
-            // Strategy 3: Negative immediates (-65535 to -1)
+            // Strategy 3: Negative immediates that fit in 16 bits when negated
             else if (value < 0 && value >= -0xFFFF) {
                 if (condType == ArmTools.CondType.nope) {
                     return "mov\t" + getDefReg() + ",\t#" + value;
@@ -77,9 +82,14 @@ public class ArmLi extends ArmInstruction {
             } 
             
             // Strategy 4: Try movn (move not) for inverted values
-            else if ((~value & 0xFFFFFFFFFFFFL) <= 0xFFFF) {
+            else if ((~value & 0xFFFFFFFFFFFFFFFFL) <= 0xFFFF) {
                 long inverted = ~value & 0xFFFF;
-                return "movn\t" + getDefReg() + ",\t#" + inverted;
+                if (condType == ArmTools.CondType.nope) {
+                    return "movn\t" + getDefReg() + ",\t#" + inverted;
+                } else {
+                    return "movn\tx16,\t#" + inverted + "\n" +
+                           "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
+                }
             }
             
             // Strategy 5: Multi-instruction sequence for large values
@@ -87,23 +97,36 @@ public class ArmLi extends ArmInstruction {
                 StringBuilder result = new StringBuilder();
                 boolean first = true;
                 
+                if (condType != ArmTools.CondType.nope) {
+                    // For conditional moves with large immediates, use a temporary register
+                    result.append("// Conditional load of large immediate\n\t");
+                }
+                
                 // Process 16-bit chunks
                 for (int shift = 0; shift < 64; shift += 16) {
                     int chunk = (int)((value >>> shift) & 0xFFFF);
                     if (chunk != 0) {
                         if (first) {
                             // Use movz for the first non-zero chunk
-                            result.append("movz\t").append(getDefReg()).append(",\t#").append(chunk);
+                            String reg = (condType != ArmTools.CondType.nope) ? "x16" : getDefReg().toString();
+                            result.append("movz\t").append(reg).append(",\t#").append(chunk);
                             if (shift > 0) {
                                 result.append(",\tlsl #").append(shift);
                             }
                             first = false;
                         } else {
                             // Use movk for subsequent chunks
-                            result.append("\n\tmovk\t").append(getDefReg())
+                            String reg = (condType != ArmTools.CondType.nope) ? "x16" : getDefReg().toString();
+                            result.append("\n\tmovk\t").append(reg)
                                   .append(",\t#").append(chunk).append(",\tlsl #").append(shift);
                         }
                     }
+                }
+                
+                // Add conditional select if needed
+                if (condType != ArmTools.CondType.nope) {
+                    result.append("\n\tcsel\t").append(getDefReg()).append(",\tx16,\txzr,\t")
+                          .append(ArmTools.getCondString(condType));
                 }
                 
                 return result.toString();

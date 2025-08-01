@@ -69,14 +69,55 @@ public class ArmTools {
     // ARMv8-A: Check if immediate can be encoded as logical immediate (for AND, ORR, EOR)
     public static boolean isLogicalImmediate(long value) {
         // ARMv8-A logical immediates must be a repetition of a pattern
-        // This is a simplified check - full implementation would be more complex
         if (value == 0 || value == -1) return false;
         
-        // Check for common patterns
+        // Check for single bit patterns
+        if (Long.bitCount(value) == 1) return true;
+        
+        // Check for patterns that are powers of 2 minus 1
+        long temp = value;
+        while (temp != 0) {
+            if ((temp & 1) == 0) break;
+            temp >>= 1;
+        }
+        if (temp == 0) return true; // All consecutive 1s from LSB
+        
+        // Check for inverted patterns (consecutive 0s)
+        long inverted = ~value;
+        if (inverted != 0 && inverted != -1) {
+            temp = inverted;
+            while (temp != 0) {
+                if ((temp & 1) == 0) break;
+                temp >>= 1;
+            }
+            if (temp == 0) return true;
+        }
+        
+        // Check for repeating patterns
+        for (int size = 2; size <= 32; size *= 2) {
+            long mask = (1L << size) - 1;
+            long pattern = value & mask;
+            boolean valid = true;
+            
+            for (int i = size; i < 64; i += size) {
+                if (((value >> i) & mask) != pattern) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (valid && pattern != 0 && pattern != mask) {
+                return true;
+            }
+        }
+        
+        // Check for common patterns used in practice
         long[] commonPatterns = {
             0x00FF00FF00FF00FFL, 0x0F0F0F0F0F0F0F0FL, 0x3333333333333333L,
             0x5555555555555555L, 0x7777777777777777L, 0x7FFFFFFFFFFFFFFFL,
-            0xFFFE, 0xFFFC, 0xFFF8, 0xFFF0, 0xFFE0, 0xFFC0, 0xFF80, 0xFF00
+            0xFFFE, 0xFFFC, 0xFFF8, 0xFFF0, 0xFFE0, 0xFFC0, 0xFF80, 0xFF00,
+            0xFE00, 0xFC00, 0xF800, 0xF000, 0xE000, 0xC000, 0x8000,
+            0x7FFF, 0x3FFF, 0x1FFF, 0x0FFF, 0x07FF, 0x03FF, 0x01FF,
+            0x00FF, 0x007F, 0x003F, 0x001F, 0x000F, 0x0007, 0x0003, 0x0001
         };
         
         for (long pattern : commonPatterns) {

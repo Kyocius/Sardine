@@ -21,16 +21,23 @@ public class ArmSw extends ArmInstruction {
                 return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + "]";
             } else {
                 // AArch64 str immediate offset range check
-                // For 64-bit: -256 to +4088 (multiple of 8)
-                // For 32-bit: -256 to +4092 (multiple of 4)
+                // Unscaled: -256 to +255
+                // Scaled: 0 to +32760 (multiple of 8 for 64-bit, 4 for 32-bit)
                 int offset = imm.getValue();
-                if (offset >= -256 && offset <= 4088 && offset % 8 == 0) {
+                
+                // Check unscaled immediate range
+                if (offset >= -256 && offset <= 255) {
                     return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
-                } else {
-                    // For large offsets, need to use a temporary register
-                    // This is a limitation - we should generate additional instructions in the code generator
-                    return "// Warning: offset " + offset + " out of range for str immediate\n" +
-                           "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
+                }
+                // Check scaled immediate range (assuming 8-byte alignment for 64-bit)
+                else if (offset >= 0 && offset <= 32760 && offset % 8 == 0) {
+                    return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
+                } 
+                // For large offsets, use temporary register x16
+                else {
+                    return "mov\tx16,\t#" + offset + "\n" +
+                           "\tadd\tx16,\t" + getOperands().get(1) + ",\tx16\n" +
+                           "\tstr\t" + getOperands().get(0) + ",\t[x16]";
                 }
             }
         } else {

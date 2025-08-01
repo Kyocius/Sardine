@@ -105,8 +105,12 @@ public class ArmCPUReg extends ArmPhyReg {
         return armCPURegs.get(31); // sp (x31)
     }
 
+    public static ArmCPUReg getArmFpReg() {
+        return armCPURegs.get(29); // x29 is the frame pointer in AArch64
+    }
+
     public static ArmCPUReg getArmArgReg(int argIntIndex) {
-        assert argIntIndex < 8; // ARMv8-A has 8 argument registers x0-x7
+        assert argIntIndex < 8 : "AArch64 only has 8 argument registers x0-x7, requested: " + argIntIndex;
         return armCPURegs.get(argIntIndex);
     }
 
@@ -114,6 +118,11 @@ public class ArmCPUReg extends ArmPhyReg {
         // PC is not directly accessible in ARMv8-A like in ARMv7
         // Return x30 (LR) as it's commonly used for PC-related operations
         return armCPURegs.get(30);
+    }
+
+    // Get temporary register for address calculations
+    public static ArmCPUReg getTempReg() {
+        return armCPURegs.get(16); // x16 is typically used as temporary in AArch64
     }
 
     public int getIndex() {
