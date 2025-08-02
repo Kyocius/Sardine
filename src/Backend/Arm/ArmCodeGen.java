@@ -541,10 +541,14 @@ public class ArmCodeGen {
             }
         }
         rightOperand = getRegOnlyFromValue(binaryInst.getRightVal(), insList, predefine);
-        ArmBinary rem = new ArmBinary(new ArrayList<>(
-                Arrays.asList(leftOperand, rightOperand)), resReg, ArmBinary.ArmBinaryType.srem);
+        ArmBinary sdiv = new ArmBinary(new ArrayList<>(Arrays.asList(leftOperand, rightOperand)), resReg, ArmBinary.ArmBinaryType.sdiv);
+        addInstr(sdiv, insList, predefine);
+        ArmReg mulReg = getNewIntReg();
+        ArmBinary mul = new ArmBinary(new ArrayList<>(Arrays.asList(resReg, rightOperand)), mulReg, ArmBinary.ArmBinaryType.mul);
+        addInstr(mul, insList, predefine);
+        ArmBinary sub = new ArmBinary(new ArrayList<>(Arrays.asList(leftOperand, mulReg)), resReg, ArmBinary.ArmBinaryType.sub);
         value2Reg.put(binaryInst, resReg);
-        addInstr(rem, insList, predefine);
+        addInstr(sub, insList, predefine);
     }
 
     public boolean isIntCmpType(OP op) {

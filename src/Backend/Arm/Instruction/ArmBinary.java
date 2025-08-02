@@ -68,7 +68,10 @@ public class ArmBinary extends ArmInstruction {
         orr,
         and,
         // Move shift operations to be used as modifiers, not standalone instructions
-        // asr, lsl, lsr, ror should be used as shift modifiers, not binary operations
+        asr, // 算数右移
+        lsl, // 逻辑左移(就是左移)
+        lsr, // 逻辑右移
+        ror, // 循环右移
         // rrx,  // RRX is limited in AArch64
         eor,
         vadd,
@@ -131,6 +134,22 @@ public class ArmBinary extends ArmInstruction {
             case orr -> {
                 return "orr";
             }
+
+            case asr -> {
+                return "asr";
+            }
+            case lsl -> {
+                return "lsl";
+            }
+            case lsr -> {
+                return "lsr";
+            }
+            case ror -> {
+                return "ror";
+            }
+            
+            //rrx
+
             case eor -> {
                 return "eor";
             }
