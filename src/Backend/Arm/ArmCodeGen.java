@@ -22,26 +22,16 @@ import java.util.*;
 import static Backend.Arm.tools.ArmTools.getOnlyRevBigSmallType;
 
 public class ArmCodeGen {
-    // IR的Value到ARM标签（如函数或全局变量）的映射
-    private final LinkedHashMap<Value, ArmLabel> value2Label = new LinkedHashMap<>();
-    // IR的Value到ARM寄存器的映射
-    private final LinkedHashMap<Value, ArmReg> value2Reg = new LinkedHashMap<>();
-    // 指针相关Value到栈偏移量的映射
-    private final LinkedHashMap<Value, Integer> ptr2Offset = new LinkedHashMap<>();
-    // 预定义的IR指令到ARM指令列表的映射
-    private final LinkedHashMap<Instruction, ArrayList<ArmInstruction>> predefines = new LinkedHashMap<>();
-    // IR模块，作为代码生成的输入
     public IRModule irModule;
-    // ARM模块，作为代码生成的输出
     public ArmModule armModule = new ArmModule();
-    // 当前正在生成指令的ARM基本块
+    private final LinkedHashMap<Value, ArmLabel> value2Label = new LinkedHashMap<>();
+    private final LinkedHashMap<Value, ArmReg> value2Reg = new LinkedHashMap<>();
+    private final LinkedHashMap<Value, Integer> ptr2Offset = new LinkedHashMap<>();
     private ArmBlock curArmBlock = null;
-    // 当前正在生成指令的ARM函数
     private ArmFunction curArmFunction = null;
-    // AArch64架构下用于128位除法的辅助函数
-    private ArmFunction ldivmod = new ArmFunction("__divti3");
+    private ArmFunction ldivmod = new ArmFunction("__divti3"); // AArch64 128-bit division function
+    private final LinkedHashMap<Instruction, ArrayList<ArmInstruction>> predefines = new LinkedHashMap<>();
 
-    // 构造方法，初始化IR模块
     public ArmCodeGen(IRModule irModule) {
         this.irModule = irModule;
     }
@@ -64,7 +54,7 @@ public class ArmCodeGen {
         String parallelEndName = "@parallelEnd";
 
         for (Function function : irModule.libFunctions()) {
-            if (Objects.equals(function.getName(), parallelStartName) && Config.parallelOpen) {
+            if(Objects.equals(function.getName(), parallelStartName) && Config.parallelOpen) {
                 ArmFunction parallelStart = new ArmFunction(removeLeadingAt(parallelStartName));
                 buildParallelBegin(parallelStart);
                 parallelStart.parseArgs(function.getArgs(), value2Reg);
@@ -346,14 +336,14 @@ public class ArmCodeGen {
             System.out.println("Processing basic block: " + bb.getName() + ", Instructions count: " + bb.getInsts().getSize());
             if (!flag) {
                 // AArch64 function prologue: save frame pointer and link register
-                ArmStp prologue = new ArmStp(ArmCPUReg.getArmCPUReg(29), ArmCPUReg.getArmRetReg(),
-                        ArmCPUReg.getArmSpReg(), new ArmImm(-16), true);
+                ArmStp prologue = new ArmStp(ArmCPUReg.getArmCPUReg(29), ArmCPUReg.getArmRetReg(), 
+                                           ArmCPUReg.getArmSpReg(), new ArmImm(-16), true);
                 addInstr(prologue, null, false);
-
+                
                 // Set frame pointer
                 ArmMv setFP = new ArmMv(ArmCPUReg.getArmSpReg(), ArmCPUReg.getArmCPUReg(29));
                 addInstr(setFP, null, false);
-
+                
                 // ARM64: Allocate stack space at function start
                 int stackSize = curArmFunction.getStackPosition();
                 if (stackSize > 0) {
@@ -362,9 +352,9 @@ public class ArmCodeGen {
                     if (stackSize <= 4095) {
                         // Can use immediate
                         ArmBinary stackAlloc = new ArmBinary(
-                                new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(stackSize))),
-                                ArmCPUReg.getArmSpReg(),
-                                ArmBinary.ArmBinaryType.sub
+                            new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(stackSize))),
+                            ArmCPUReg.getArmSpReg(),
+                            ArmBinary.ArmBinaryType.sub
                         );
                         addInstr(stackAlloc, null, false);
                     } else {
@@ -373,14 +363,14 @@ public class ArmCodeGen {
                         ArmLi li = new ArmLi(new ArmImm(stackSize), assistReg);
                         addInstr(li, null, false);
                         ArmBinary stackAlloc = new ArmBinary(
-                                new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), assistReg)),
-                                ArmCPUReg.getArmSpReg(),
-                                ArmBinary.ArmBinaryType.sub
+                            new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), assistReg)),
+                            ArmCPUReg.getArmSpReg(),
+                            ArmBinary.ArmBinaryType.sub
                         );
                         addInstr(stackAlloc, null, false);
                     }
                 }
-
+                
                 //将所有函数中的用于参数的mv指令加入Block
                 for (ArmMv armMv : curArmFunction.getMvs()) {
                     addInstr(armMv, null, false);
@@ -470,134 +460,91 @@ public class ArmCodeGen {
         }
     }
 
-    /**
-     * 将 IR 层的取模（%）指令转换为 ARM 指令序列
-     *
-     * @param binaryInst IR 层的取模指令
-     * @param predefine  是否为预定义模式（用于指令缓存）
-     */
     public void parseMod(BinaryInst binaryInst, boolean predefine) {
-        // 如果已预处理则直接返回
         if (preProcess(binaryInst, predefine)) {
             return;
         }
-        // ARM 指令列表，预定义模式下新建列表，否则为 null
         ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
-        // 关联 IR 指令与 ARM 指令列表
         predefines.put(binaryInst, insList);
-        // 获取结果寄存器
         ArmVirReg resReg = getResReg(binaryInst, ArmVirReg.RegType.intType);
-
-        // 处理 64 位整型取模
-        if (binaryInst.I64) {
-            /**
-             * 64 位取模需要辅助函数 __divti3
-             * 生成 smull、asr、bl、mov 等指令
+        if(binaryInst.I64) {
+            /***
+             * movw	r2,	#1
+             * movt	r2,	#15232
+             * smull r0, r1, r0, r1
+             * asr r3, r2, #31
+             * bl __aeabi_ldivmod
+             * mov r0, r2
              */
             assert binaryInst.getLeftVal() instanceof BinaryInst
                     && ((BinaryInst) binaryInst.getLeftVal()).I64;
-            ArmReg reg1 = getRegOnlyFromValue(((BinaryInst) binaryInst.getLeftVal()).getLeftVal(), insList, predefine);
-            ArmReg reg2 = getRegOnlyFromValue(((BinaryInst) binaryInst.getLeftVal()).getRightVal(), insList, predefine);
-            addInstr(new ArmSmull(ArmCPUReg.getArmCPUReg(0), reg1, reg2), insList, predefine);
+            ArmReg reg1 = getRegOnlyFromValue(((BinaryInst) binaryInst.getLeftVal()).
+                    getLeftVal(), insList, predefine);
+            ArmReg reg2 = getRegOnlyFromValue(((BinaryInst)
+                    binaryInst.getLeftVal()).getRightVal(), insList, predefine);
+            addInstr(new ArmSmull(ArmCPUReg.getArmCPUReg(0), ArmCPUReg.getArmCPUReg(1),
+                    reg1, reg2), insList, predefine);
             assert binaryInst.getRightVal() instanceof ConstInteger;
-            addInstr(new ArmLi(new ArmImm(((ConstInteger) binaryInst.getRightVal()).getValue()), ArmCPUReg.getArmCPUReg(2)), insList, predefine);
-            // 使用ADD指令加0，配合ASR移位
+            addInstr(new ArmLi(new ArmImm(((ConstInteger)binaryInst.getRightVal()).getValue()),
+                    ArmCPUReg.getArmCPUReg(2)), insList, predefine);
             addInstr(new ArmBinary(
-                            new ArrayList<>(Arrays.asList(ArmCPUReg.getArmCPUReg(2), new ArmImm(0))),
-                            ArmCPUReg.getArmCPUReg(3),
-                            31, ArmBinary.ArmShiftType.ASR, ArmBinary.ArmBinaryType.add),
-                    insList,
-                    predefine);
-            // 调整栈空间
+                    new ArrayList<>(Arrays.asList(ArmCPUReg.getArmCPUReg(2), new ArmImm(31))),
+                    ArmCPUReg.getArmCPUReg(3), ArmBinary.ArmBinaryType.asr), insList, predefine);
             ArmBinary ins2 = new ArmBinary(new ArrayList<>(
                     Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmStackFixer(curArmFunction, 0))),
                     ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.sub);
             addInstr(ins2, insList, predefine);
 
-            // 调用辅助函数
             ArmCall call = new ArmCall(ldivmod);
             call.addUsedReg(ArmCPUReg.getArmCPUReg(0));
             call.addUsedReg(ArmCPUReg.getArmCPUReg(1));
             call.addUsedReg(ArmCPUReg.getArmCPUReg(2));
             call.addUsedReg(ArmCPUReg.getArmCPUReg(3));
             addInstr(call, insList, predefine);
-
-            // 恢复栈空间
             ArmBinary ins3 = new ArmBinary(new ArrayList<>(
                     Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmStackFixer(curArmFunction, 0))),
                     ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.add);
             addInstr(ins3, insList, predefine);
-
-            // 保存结果
             addInstr(new ArmMv(ArmCPUReg.getArmCPUReg(2), resReg), insList, predefine);
             value2Reg.put(binaryInst, resReg);
             return;
         }
-
-        // 获取左操作数寄存器或立即数
         ArmOperand leftOperand = getRegOnlyFromValue(binaryInst.getLeftVal(), insList, predefine);
         ArmOperand rightOperand;
-
-        // 优化：如果右操作数是 2 的幂，使用移位和加减优化取模
         if (binaryInst.getRightVal() instanceof ConstInteger) {
             int val = ((ConstInteger) binaryInst.getRightVal()).getValue();
             int temp = Math.abs(val);
-            if ((temp & (temp - 1)) == 0) { // 判断是否为 2 的幂
+            if ((temp & (temp - 1)) == 0) {
                 int shift = 0;
                 while (temp >= 2) {
                     shift++;
                     temp /= 2;
                 }
                 ArmReg reg = getNewIntReg();
-                // 算术右移
                 addInstr(new ArmBinary(
-                                new ArrayList<>(Arrays.asList(leftOperand, new ArmImm(31))),
-                                reg,
-                                31,
-                                ArmBinary.ArmShiftType.ASR,
-                                ArmBinary.ArmBinaryType.add
-                        ),
-                        insList, predefine);
-                // 逻辑右移
+                        new ArrayList<>(Arrays.asList(leftOperand, new ArmImm(31))),
+                        reg, ArmBinary.ArmBinaryType.asr), insList, predefine);
                 addInstr(new ArmBinary(
                         new ArrayList<>(Arrays.asList(reg, new ArmImm(32 - shift))),
-                        reg,
-                        32 - shift,
-                        ArmBinary.ArmShiftType.LSR,
-                        ArmBinary.ArmBinaryType.add), insList, predefine);
-                // 加法
+                        reg, ArmBinary.ArmBinaryType.lsr), insList, predefine);
                 addInstr(new ArmBinary(
                         new ArrayList<>(Arrays.asList(leftOperand, reg)),
                         reg, ArmBinary.ArmBinaryType.add), insList, predefine);
-                // 再逻辑右移
                 addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(reg, new ArmImm(shift))),
-                        reg,
-                        shift,
-                        ArmBinary.ArmShiftType.LSR,
-                        ArmBinary.ArmBinaryType.add), insList, predefine);
-                // 左移
+                        reg, ArmBinary.ArmBinaryType.lsr), insList, predefine);
                 addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(reg, new ArmImm(shift))),
-                        reg, shift, ArmBinary.ArmShiftType.LSL,
-                        ArmBinary.ArmBinaryType.add), insList, predefine);
-                // 最终结果
+                        reg, ArmBinary.ArmBinaryType.lsl), insList, predefine);
                 addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(leftOperand, reg)),
                         resReg, ArmBinary.ArmBinaryType.sub), insList, predefine);
                 value2Reg.put(binaryInst, resReg);
                 return;
             }
         }
-
-        // 普通情况，获取右操作数寄存器
         rightOperand = getRegOnlyFromValue(binaryInst.getRightVal(), insList, predefine);
-
-        // AArch64 没有直接的 srem 指令，需要用 sdiv + msub 实现
-        ArmReg divReg = getNewIntReg();
-        addInstr(new ArmBinary(new ArrayList<>(
-                Arrays.asList(leftOperand, rightOperand)), divReg, ArmBinary.ArmBinaryType.sdiv), insList, predefine);
-        // msub: resReg = leftOperand - (divReg * rightOperand)
-        ArmBinary msub = new ArmBinary(new ArrayList<>(
-                Arrays.asList(divReg, rightOperand, leftOperand)), resReg, ArmBinary.ArmBinaryType.msub);
-        addInstr(msub, insList, predefine);
+        ArmBinary rem = new ArmBinary(new ArrayList<>(
+                Arrays.asList(leftOperand, rightOperand)), resReg, ArmBinary.ArmBinaryType.srem);
+        value2Reg.put(binaryInst, resReg);
+        addInstr(rem, insList, predefine);
     }
 
     public boolean isIntCmpType(OP op) {
@@ -679,7 +626,7 @@ public class ArmCodeGen {
             type = getOnlyRevBigSmallType(type);
         }
         if (rightOp instanceof ArmImm) {
-            if (ArmTools.isArmImmCanBeEncoded(((ArmImm) rightOp).getIntValue())) {
+            if (ArmTools.isArmImmCanBeEncoded(((ArmImm) rightOp).getValue())) {
                 addInstr(new ArmCompare(leftOp, rightOp, ArmCompare.CmpType.cmp), insList, predefine);
             } else {
                 ArmReg reg = getNewIntReg();
@@ -747,7 +694,7 @@ public class ArmCodeGen {
                 addInstr(mv, insList, predefine);
             } else {
                 //TODO: 是否能换成减法呢
-                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getIntValue())) {
+                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getValue())) {
                     ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(left,
                             new ArmImm(((ArmImm) right).getValue()))), resReg,
                             ArmBinary.ArmBinaryType.add);
@@ -918,7 +865,7 @@ public class ArmCodeGen {
                 ArmRev rev = new ArmRev((ArmReg) right, resReg);
                 addInstr(rev, insList, predefine);
             } else {
-                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) left).getIntValue())) {
+                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) left).getValue())) {
                     // For rsb (reverse subtract), we need to compute left - right
                     // In ARM64, use sub with operands swapped: sub res, left_reg, right_reg
                     ArmReg assistReg = getNewIntReg();
@@ -943,7 +890,7 @@ public class ArmCodeGen {
                     ArmMv mv = new ArmMv((ArmReg) left, resReg);
                     addInstr(mv, insList, predefine);
                 } else {
-                    if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getIntValue())) {
+                    if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getValue())) {
                         ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(left,
                                 new ArmImm(((ArmImm) right).getValue()))), resReg,
                                 ArmBinary.ArmBinaryType.sub);
@@ -1001,126 +948,76 @@ public class ArmCodeGen {
         return shift;
     }
 
-    /**
-     * 解析 IR 层的乘法指令，将其转换为 ARM 指令序列
-     * 包含多种优化策略：移位优化、加减法组合优化等
-     *
-     * @param binaryInst IR 层的二元乘法指令
-     * @param predefine  是否为预定义模式（用于指令缓存）
-     */
     public void parseMul(BinaryInst binaryInst, boolean predefine) {
-        // 如果指令已经预处理过，直接返回
         if (preProcess(binaryInst, predefine)) {
             return;
         }
-
-        // 64位整型乘法暂不处理，直接返回
         if (binaryInst.I64) {
             return;
         }
-
-        // 创建 ARM 指令列表，预定义模式下新建列表，否则为 null
         ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
-        // 将当前 IR 指令与其对应的 ARM 指令列表关联
         predefines.put(binaryInst, insList);
-
         //TODO: ready to be optimized
-        // 分配结果寄存器
         ArmReg resReg = getResReg(binaryInst, ArmVirReg.RegType.intType);
-
-        // 获取左右操作数
         Value leftVal = binaryInst.getLeftVal();
         Value rightVal = binaryInst.getRightVal();
-
-        // 如果左操作数是常数，交换左右操作数（保证常数在右侧，便于优化）
         if (leftVal instanceof ConstInteger) {
             Value temp = leftVal;
             leftVal = rightVal;
             rightVal = temp;
         }
-
-        // 获取左操作数对应的寄存器
         ArmReg leftOperand = getRegOnlyFromValue(leftVal, insList, predefine);
         ArmOperand rightOperand;
-
-        // 如果右操作数是常数，进行各种优化
         if (rightVal instanceof ConstInteger) {
-            int constValue = ((ConstInteger) rightVal).getValue();
-
-            // 优化 1：乘以 1，直接移动寄存器
-            if (constValue == 1) {
+            if (((ConstInteger) rightVal).getValue() == 1) {
                 addInstr(new ArmMv(leftOperand, resReg), insList, predefine);
                 value2Reg.put(binaryInst, resReg);
                 return;
-            }
-            // 优化 2：乘以 -1，使用取反指令
-            else if (constValue == -1) {
+            } else if (((ConstInteger) rightVal).getValue() == -1) {
                 addInstr(new ArmRev(leftOperand, resReg), insList, predefine);
                 value2Reg.put(binaryInst, resReg);
                 return;
-            }
-            // 优化 3：乘以 0，直接加载常数 0
-            else if (constValue == 0) {
+            } else if (((ConstInteger) rightVal).getValue() == 0) {
                 addInstr(new ArmLi(new ArmImm(0), resReg), insList, predefine);
                 value2Reg.put(binaryInst, resReg);
                 return;
-            }
-            // 优化 4：检查是否可以用移位和加减法优化
-            else {
-                // 分析常数，看是否可以表示为 2 的幂或 2 的幂的组合
-                ArrayList<Integer> ans = canOpt(Math.abs(constValue));
-
+            } else {
+                ArrayList<Integer> ans = canOpt(Math.abs(((ConstInteger) rightVal).getValue()));
                 if (ans.size() > 0) {
-                    // 如果常数为负，先对左操作数取反
-                    if (constValue < 0) {
+                    if (((ConstInteger) rightVal).getValue() < 0) {
                         ArmVirReg reg = getNewIntReg();
                         addInstr(new ArmRev(leftOperand, reg), insList, predefine);
                         leftOperand = reg;
                     }
-
-                    // 情况 1：常数是 2 的幂，使用左移指令 (x * 2^n = x << n)
                     if (ans.size() == 1) {
                         int shift = getShift(Math.abs(ans.get(0)));
                         addInstr(new ArmBinary(
-                                new ArrayList<>(Arrays.asList(new ArmImm(0), leftOperand)),
-                                resReg, shift, ArmBinary.ArmShiftType.LSL, ArmBinary.ArmBinaryType.add), insList, predefine);
+                                new ArrayList<>(Arrays.asList(leftOperand, new ArmImm(shift))),
+                                resReg, ArmBinary.ArmBinaryType.lsl), insList, predefine);
                         value2Reg.put(binaryInst, resReg);
                         return;
-                    }
-                    // 情况 2：常数可以表示为两个 2 的幂的加减 (x * (2^a ± 2^b) = (x << a) ± (x << b))
-                    else if (ans.size() == 2) {
+                    } else if (ans.size() == 2) {
                         assert ans.get(0) > 0;
-
-                        // 第一步：计算 x << shift1
                         int shift = getShift(Math.abs(ans.get(0)));
                         if (shift == 0) {
-                            // 如果移位为 0，直接移动
                             addInstr(new ArmMv(leftOperand, resReg), insList, predefine);
                         } else {
-                            // 左移 shift 位
                             addInstr(new ArmBinary(
                                     new ArrayList<>(Arrays.asList(leftOperand, new ArmImm(shift))),
-                                    resReg, shift, ArmBinary.ArmShiftType.LSL, ArmBinary.ArmBinaryType.add), insList, predefine);
+                                    resReg, ArmBinary.ArmBinaryType.lsl), insList, predefine);
                         }
-
-                        // 第二步：根据第二个数的正负决定加法或减法
-                        boolean flag = ans.get(1) > 0;  // true 表示加法，false 表示减法
+                        boolean flag = ans.get(1) > 0;
                         shift = getShift(Math.abs(ans.get(1)));
-
                         if (flag) {
-                            // 加法：resReg = resReg + (leftOperand << shift)
                             addInstr(new ArmBinary(
                                     new ArrayList<>(Arrays.asList(resReg, leftOperand)),
                                     resReg, shift, ArmBinary.ArmShiftType.LSL, ArmBinary.ArmBinaryType.add), insList, predefine);
                         } else {
-                            // 减法：resReg = resReg - (leftOperand << shift)
                             if (shift == 0) {
-                                // 如果移位为 0，直接减法
                                 addInstr(new ArmBinary(
                                         new ArrayList<>(Arrays.asList(resReg, leftOperand)),
                                         resReg, ArmBinary.ArmBinaryType.sub), insList, predefine);
                             } else {
-                                // 减法并左移
                                 addInstr(new ArmBinary(
                                         new ArrayList<>(Arrays.asList(resReg, leftOperand)),
                                         resReg, shift, ArmBinary.ArmShiftType.LSL, ArmBinary.ArmBinaryType.sub), insList, predefine);
@@ -1132,8 +1029,6 @@ public class ArmCodeGen {
                 }
             }
         }
-
-        // 无法优化的情况：使用标准乘法指令
         rightOperand = getRegOnlyFromValue(rightVal, insList, predefine);
         ArmBinary mul = new ArmBinary(new ArrayList<>(
                 Arrays.asList(leftOperand, rightOperand)), resReg, ArmBinary.ArmBinaryType.mul);
@@ -1177,25 +1072,16 @@ public class ArmCodeGen {
                 }
                 ArmReg reg = getNewIntReg();
                 addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(leftOperand, new ArmImm(31))),
-                        reg,
-                        31,
-                        ArmBinary.ArmShiftType.ASR,
-                        ArmBinary.ArmBinaryType.add), insList, predefine);
+                        reg, ArmBinary.ArmBinaryType.asr), insList, predefine);
                 addInstr(new ArmBinary(
                         new ArrayList<>(Arrays.asList(reg, new ArmImm(32 - shift))),
-                        reg,
-                        32 - shift,
-                        ArmBinary.ArmShiftType.LSL,
-                        ArmBinary.ArmBinaryType.add), insList, predefine);
+                        reg, ArmBinary.ArmBinaryType.lsr), insList, predefine);
                 addInstr(new ArmBinary(
                         new ArrayList<>(Arrays.asList(leftOperand, reg)),
                         reg, ArmBinary.ArmBinaryType.add), insList, predefine);
                 addInstr(new ArmBinary(
                         new ArrayList<>(Arrays.asList(reg, new ArmImm(shift))),
-                        resReg,
-                        shift,
-                        ArmBinary.ArmShiftType.ASR,
-                        ArmBinary.ArmBinaryType.add), insList, predefine);
+                        resReg, ArmBinary.ArmBinaryType.asr), insList, predefine);
                 value2Reg.put(binaryInst, resReg);
                 return;
             } else if (Config.divOptOpen) {
@@ -1215,18 +1101,15 @@ public class ArmCodeGen {
                 if (m >= 2147483648L) {
                     ArmFma fma = new ArmFma(leftOperand, reg1, leftOperand, reg2);
                     addInstr(fma, insList, predefine);
-                    //fma.setSigned(true);
+                    fma.setSigned(true);
                 } else {
                     addInstr(new ArmLongMul(reg2, leftOperand, reg1), insList, predefine);
                 }
                 ArmReg reg3 = getNewIntReg();
                 addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(reg2, new ArmImm(shift))),
-                        reg3,
-                        shift,
-                        ArmBinary.ArmShiftType.ASR,
-                        ArmBinary.ArmBinaryType.add), insList, predefine);
+                        reg3, ArmBinary.ArmBinaryType.asr), insList, predefine);
                 addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(reg3, leftOperand)),
-                                resReg, 31, ArmBinary.ArmShiftType.LSR, ArmBinary.ArmBinaryType.add),
+                        resReg, 31, ArmBinary.ArmShiftType.LSR, ArmBinary.ArmBinaryType.add),
                         insList, predefine);
                 if (flag) {
                     addInstr(new ArmRev(resReg, resReg), insList, predefine);
@@ -1573,9 +1456,9 @@ public class ArmCodeGen {
         }
         // AArch64 function epilogue: restore frame pointer and link register
         ArmLdp epilogue = new ArmLdp(ArmCPUReg.getArmCPUReg(29), ArmCPUReg.getArmRetReg(),
-                ArmCPUReg.getArmSpReg(), new ArmImm(16), true);
+                                    ArmCPUReg.getArmSpReg(), new ArmImm(16), true);
         addInstr(epilogue, insList, predefine);
-
+        
         // Return
         addInstr(new ArmRet(ArmCPUReg.getArmRetReg(), retUsedReg), insList, predefine);
     }
@@ -1752,7 +1635,7 @@ public class ArmCodeGen {
             }
             int offset = curArmFunction.getOffset(ptrInst.getTarget()) * -1;
             if (op2 instanceof ArmImm) {
-                offset = offset + ((ArmImm) op2).getIntValue() * 4;
+                offset = offset + ((ArmImm) op2).getValue() * 4;
                 ptr2Offset.put(ptrInst, offset);
             } else {
                 assert op2 instanceof ArmVirReg;
@@ -1785,7 +1668,7 @@ public class ArmCodeGen {
             }
             if (ptr2Offset.containsKey(ptrInst.getTarget())) {
                 if (op2 instanceof ArmImm) {
-                    int offset = ptr2Offset.get(ptrInst.getTarget()) + ((ArmImm) op2).getIntValue() * 4;
+                    int offset = ptr2Offset.get(ptrInst.getTarget()) + ((ArmImm) op2).getValue() * 4;
                     ptr2Offset.put(ptrInst, offset);
                 } else {
                     assert op2 instanceof ArmReg;
@@ -1813,7 +1696,7 @@ public class ArmCodeGen {
                 ArmReg op1 = value2Reg.get(ptrInst.getTarget());
                 ArmReg resReg = getResReg(ptrInst, ArmVirReg.RegType.intType);
                 if (op2 instanceof ArmImm) {
-                    int offset = ((ArmImm) op2).getIntValue() * 4;
+                    int offset = ((ArmImm) op2).getValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(op1,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1841,7 +1724,7 @@ public class ArmCodeGen {
             addInstr(li, insList, predefine);
             if (!(op2 instanceof ArmImm && ((ArmImm) op2).getValue() == 0)) {
                 if (op2 instanceof ArmImm) {
-                    int offset = ((ArmImm) op2).getIntValue() * 4;
+                    int offset = ((ArmImm) op2).getValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary add = new ArmBinary(new ArrayList<>(Arrays.asList(resReg,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1868,7 +1751,7 @@ public class ArmCodeGen {
                 addInstr(mv, insList, predefine);
                 if (!(op2 instanceof ArmImm && ((ArmImm) op2).getValue() == 0)) {
                     if (op2 instanceof ArmImm) {
-                        int offset = ((ArmImm) op2).getIntValue() * 4;
+                        int offset = ((ArmImm) op2).getValue() * 4;
                         if (ArmTools.isArmImmCanBeEncoded(offset)) {
                             ArmBinary add = new ArmBinary(new ArrayList<>(Arrays.asList(resReg,
                                     new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1905,7 +1788,7 @@ public class ArmCodeGen {
                 }
                 value2Reg.put(ptrInst.getTarget(), argReg);
                 if (op2 instanceof ArmImm) {
-                    offset = ((ArmImm) op2).getIntValue() * 4;
+                    offset = ((ArmImm) op2).getValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(argReg,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1928,7 +1811,7 @@ public class ArmCodeGen {
             ArmReg phiReg = getRegOnlyFromValue(ptrInst.getTarget(), insList, predefine);
             ArmVirReg resReg = getResReg(ptrInst, ArmVirReg.RegType.intType);
             if (op2 instanceof ArmImm) {
-                int offset = ((ArmImm) op2).getIntValue() * 4;
+                int offset = ((ArmImm) op2).getValue() * 4;
                 if (ArmTools.isArmImmCanBeEncoded(offset)) {
                     ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(phiReg,
                             new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1965,7 +1848,7 @@ public class ArmCodeGen {
             }
             int offset = curArmFunction.getOffset(ptrInst.getTarget()) * -1;
             if (op2 instanceof ArmImm) {
-                offset = offset - ((ArmImm) op2).getIntValue() * 4;
+                offset = offset - ((ArmImm) op2).getValue() * 4;
                 ptr2Offset.put(ptrInst, offset);
             } else {
                 assert op2 instanceof ArmVirReg;
@@ -1998,7 +1881,7 @@ public class ArmCodeGen {
             }
             if (ptr2Offset.containsKey(ptrInst.getTarget())) {
                 if (op2 instanceof ArmImm) {
-                    int offset = ptr2Offset.get(ptrInst.getTarget()) - ((ArmImm) op2).getIntValue() * 4;
+                    int offset = ptr2Offset.get(ptrInst.getTarget()) - ((ArmImm) op2).getValue() * 4;
                     ptr2Offset.put(ptrInst, offset);
                 } else {
                     assert op2 instanceof ArmReg;
@@ -2026,7 +1909,7 @@ public class ArmCodeGen {
                 ArmReg op1 = value2Reg.get(ptrInst.getTarget());
                 ArmReg resReg = getResReg(ptrInst, ArmVirReg.RegType.intType);
                 if (op2 instanceof ArmImm) {
-                    int offset = ((ArmImm) op2).getIntValue() * 4;
+                    int offset = ((ArmImm) op2).getValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(op1,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
@@ -2054,7 +1937,7 @@ public class ArmCodeGen {
             addInstr(li, insList, predefine);
             if (!(op2 instanceof ArmImm && ((ArmImm) op2).getValue() == 0)) {
                 if (op2 instanceof ArmImm) {
-                    int offset = ((ArmImm) op2).getIntValue() * 4;
+                    int offset = ((ArmImm) op2).getValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary add = new ArmBinary(new ArrayList<>(Arrays.asList(resReg,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
@@ -2081,7 +1964,7 @@ public class ArmCodeGen {
                 addInstr(mv, insList, predefine);
                 if (!(op2 instanceof ArmImm && ((ArmImm) op2).getValue() == 0)) {
                     if (op2 instanceof ArmImm) {
-                        int offset = ((ArmImm) op2).getIntValue() * 4;
+                        int offset = ((ArmImm) op2).getValue() * 4;
                         if (ArmTools.isArmImmCanBeEncoded(offset)) {
                             ArmBinary add = new ArmBinary(new ArrayList<>(Arrays.asList(resReg,
                                     new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
@@ -2118,7 +2001,7 @@ public class ArmCodeGen {
                 }
                 value2Reg.put(ptrInst.getTarget(), argReg);
                 if (op2 instanceof ArmImm) {
-                    offset = ((ArmImm) op2).getIntValue() * 4;
+                    offset = ((ArmImm) op2).getValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(argReg,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
@@ -2141,7 +2024,7 @@ public class ArmCodeGen {
             ArmReg phiReg = getRegOnlyFromValue(ptrInst.getTarget(), insList, predefine);
             ArmVirReg resReg = getResReg(ptrInst, ArmVirReg.RegType.intType);
             if (op2 instanceof ArmImm) {
-                int offset = ((ArmImm) op2).getIntValue() * 4;
+                int offset = ((ArmImm) op2).getValue() * 4;
                 if (ArmTools.isArmImmCanBeEncoded(offset)) {
                     ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(phiReg,
                             new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
