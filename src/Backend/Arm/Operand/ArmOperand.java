@@ -6,8 +6,13 @@ import Utils.DataStruct.IList;
 
 import java.util.LinkedHashSet;
 
+/**
+ * AArch64 Operand Base Class
+ * Architecture-independent operand management for AArch64 backend
+ * Handles use-def chains and operand replacement operations
+ */
 public class ArmOperand {
-    private LinkedHashSet<IList.INode<ArmInstruction, ArmBlock>> users;
+    private final LinkedHashSet<IList.INode<ArmInstruction, ArmBlock>> users;
 
     public ArmOperand() {
         this.users = new LinkedHashSet<>();

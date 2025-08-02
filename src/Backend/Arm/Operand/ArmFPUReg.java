@@ -2,22 +2,45 @@ package Backend.Arm.Operand;
 
 import java.util.LinkedHashMap;
 
+/**
+ * AArch64 SIMD and Floating-Point Register implementation
+ * Manages both single-precision (s0-s31), double-precision (d0-d31),
+ * and vector registers (v0-v31) with different element sizes
+ */
 public class ArmFPUReg extends ArmPhyReg {
-    private static LinkedHashMap<Integer, ArmFPUReg> armFPURegs = new LinkedHashMap<>();
+    private static final LinkedHashMap<Integer, ArmFPUReg> armFPURegs = new LinkedHashMap<>();
+
     static {
-        // ARMv8-A has 32 SIMD and floating-point registers d0-d31
+        // AArch64 has 32 SIMD and floating-point registers v0-v31
+        // Default to double-precision (d0-d31) for backward compatibility
         for (int i = 0; i <= 31; i++) {
-            armFPURegs.put(i, new ArmFPUReg(i, "d" + i));
+            armFPURegs.put(i, new ArmFPUReg(i, "d" + i, 64));
         }
+    }
+
+    // 每个FPU寄存器的属性和方法
+    private final int index;
+    private final String name;
+    private final int bitWidth; // 32, 64, or 128 bits
+
+    public ArmFPUReg(int index, String name, int bitWidth) {
+        this.index = index;
+        this.name = name;
+        this.bitWidth = bitWidth;
+    }
+
+    // Legacy constructor for backward compatibility
+    public ArmFPUReg(int index, String name) {
+        this(index, name, 64); // Default to 64-bit double precision
     }
 
     @Override
     public boolean canBeReorder() {
-        // ARMv8-A: d8-d15 are callee-saved registers
-        if(index >= 8 && index <= 15){
-            return false;
-        }
-        return true;
+        // AArch64 AAPCS64: d8-d15 are callee-saved registers
+        // v0-v7: argument/result registers (caller-saved)
+        // v8-v15: callee-saved registers (lower 64 bits only)
+        // v16-v31: temporary registers (caller-saved)
+        return !(index >= 8 && index <= 15);
     }
 
     public static LinkedHashMap<Integer, ArmFPUReg> getAllFPURegs() {
@@ -47,13 +70,41 @@ public class ArmFPUReg extends ArmPhyReg {
         return index >= 0 && index <= 7; // d0-d7 are argument registers
     }
 
-    // 每个CPU寄存器的属性和方法
-    private int index;
-    private String name;
+    /**
+     * Get single-precision variant (s0-s31)
+     */
+    public ArmFPUReg toSinglePrecision() {
+        return new ArmFPUReg(index, "s" + index, 32);
+    }
 
-    public ArmFPUReg(int index, String name) {
-        this.index = index;
-        this.name = name;
+    /**
+     * Get double-precision variant (d0-d31)
+     */
+    public ArmFPUReg toDoublePrecision() {
+        return new ArmFPUReg(index, "d" + index, 64);
+    }
+
+    /**
+     * Get vector register variant (v0-v31)
+     */
+    public ArmFPUReg toVectorReg() {
+        return new ArmFPUReg(index, "v" + index, 128);
+    }
+
+    public boolean isSinglePrecision() {
+        return bitWidth == 32;
+    }
+
+    public boolean isDoublePrecision() {
+        return bitWidth == 64;
+    }
+
+    public boolean isVectorReg() {
+        return bitWidth == 128;
+    }
+
+    public int getBitWidth() {
+        return bitWidth;
     }
 
     public int getIndex() {
@@ -68,5 +119,4 @@ public class ArmFPUReg extends ArmPhyReg {
     public String toString() {
         return this.name;
     }
-
 }

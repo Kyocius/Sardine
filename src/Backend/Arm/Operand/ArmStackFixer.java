@@ -2,9 +2,13 @@ package Backend.Arm.Operand;
 
 import Backend.Arm.Structure.ArmFunction;
 
+/**
+ * AArch64 Stack Offset Fixer
+ * Handles dynamic stack offset calculation with 16-byte alignment
+ * Computes correct offsets for parameters and local variables in stack frame
+ */
 public class ArmStackFixer extends ArmImm {
-    private final int offset;//参数偏移
-
+    private final int offset; // Parameter offset
     private final ArmFunction function;
 
     public ArmStackFixer(ArmFunction function, int extraOffset) {
@@ -14,21 +18,21 @@ public class ArmStackFixer extends ArmImm {
     }
 
     @Override
-    public int getValue() {
-        if (function.getStackPosition() == 0) return offset;
-        else {
-            // ARM64: Use positive offset from stack pointer (after stack allocation)
-            int stackFrameSize = function.getStackPosition() - 1 -
-                    (function.getStackPosition() - 1) % 16 + 16;
-            // Align to 16 bytes
-            stackFrameSize = (stackFrameSize + 15) & ~15;
-            return stackFrameSize - (function.getStackPosition() - 1 -
-                    (function.getStackPosition() - 1) % 16 + 16 + offset);
+    public long getValue() {
+        if (function.getStackPosition() == 0) {
+            return offset;
+        } else {
+            // AArch64: 16-byte stack alignment requirement
+            int stackSize = function.getStackPosition() - 1;
+            // Align stack frame to 16 bytes (AArch64 requirement)
+            int alignedStackSize = (stackSize + 15) & ~15;
+            // Calculate final offset from aligned stack frame
+            return alignedStackSize + offset;
         }
     }
 
     @Override
     public String toString() {
-        return "#" + Integer.toString(getValue());
+        return "#" + getValue();
     }
 }

@@ -2,57 +2,40 @@ package Backend.Arm.Operand;
 
 import java.util.LinkedHashMap;
 
+/**
+ * AArch64 CPU Register implementation
+ * Manages both 64-bit (x0-x31, xzr) and 32-bit (w0-w31, wzr) general purpose registers
+ */
 public class ArmCPUReg extends ArmPhyReg {
     private static final LinkedHashMap<Integer, String> ArmIntRegNames = new LinkedHashMap<>();
     private static final LinkedHashMap<Integer, String> ArmIntRegNames32 = new LinkedHashMap<>();
     
     static {
-        // ARMv8-A 64-bit general purpose registers
-        ArmIntRegNames.put(0, "x0");
-        ArmIntRegNames.put(1, "x1");
-        ArmIntRegNames.put(2, "x2");
-        ArmIntRegNames.put(3, "x3");
-        ArmIntRegNames.put(4, "x4");
-        ArmIntRegNames.put(5, "x5");
-        ArmIntRegNames.put(6, "x6");
-        ArmIntRegNames.put(7, "x7");
-        ArmIntRegNames.put(8, "x8");
-        ArmIntRegNames.put(9, "x9");
-        ArmIntRegNames.put(10, "x10");
-        ArmIntRegNames.put(11, "x11");
-        ArmIntRegNames.put(12, "x12");
-        ArmIntRegNames.put(13, "x13");
-        ArmIntRegNames.put(14, "x14");
-        ArmIntRegNames.put(15, "x15");
-        ArmIntRegNames.put(16, "x16");
-        ArmIntRegNames.put(17, "x17");
-        ArmIntRegNames.put(18, "x18");
-        ArmIntRegNames.put(19, "x19");
-        ArmIntRegNames.put(20, "x20");
-        ArmIntRegNames.put(21, "x21");
-        ArmIntRegNames.put(22, "x22");
-        ArmIntRegNames.put(23, "x23");
-        ArmIntRegNames.put(24, "x24");
-        ArmIntRegNames.put(25, "x25");
-        ArmIntRegNames.put(26, "x26");
-        ArmIntRegNames.put(27, "x27");
-        ArmIntRegNames.put(28, "x28");
-        ArmIntRegNames.put(29, "x29"); // Frame pointer
-        ArmIntRegNames.put(30, "x30"); // Link register
+        // ARMv8-A 64-bit general purpose registers (x0-x31)
+        for (int i = 0; i <= 30; i++) {
+            ArmIntRegNames.put(i, "x" + i);
+        }
         ArmIntRegNames.put(31, "sp");  // Stack pointer
         
-        // ARMv8-A 32-bit general purpose registers (w0-w30, wsp)
+        // Add special zero register (conceptual index 32 for xzr)
+        ArmIntRegNames.put(32, "xzr"); // Zero register (64-bit)
+
+        // ARMv8-A 32-bit general purpose registers (w0-w31)
         for (int i = 0; i <= 30; i++) {
             ArmIntRegNames32.put(i, "w" + i);
         }
         ArmIntRegNames32.put(31, "wsp"); // 32-bit stack pointer
+        ArmIntRegNames32.put(32, "wzr"); // Zero register (32-bit)
     }
 
-    private static LinkedHashMap<Integer, ArmCPUReg> armCPURegs = new LinkedHashMap<>();
+    private static final LinkedHashMap<Integer, ArmCPUReg> armCPURegs = new LinkedHashMap<>();
     static {
+        // Create regular registers (0-31)
         for (int i = 0; i <= 31; i++) {
             armCPURegs.put(i, new ArmCPUReg(i, ArmIntRegNames.get(i)));
         }
+        // Create zero register (index 32)
+        armCPURegs.put(32, new ArmCPUReg(32, ArmIntRegNames.get(32)));
     }
 
     private final int index;
@@ -79,10 +62,25 @@ public class ArmCPUReg extends ArmPhyReg {
         return is32Bit;
     }
 
+    public boolean isZeroReg() {
+        return index == 32; // xzr/wzr
+    }
+
     public boolean canBeReorder(){
-        // ARMv8-A preserved registers: x19-x28, x29 (FP), x30 (LR), x31 (SP)
-        if(index == 1 || (index >= 19 && index <= 31)) return false;
-        return true;
+        // AArch64 AAPCS64 calling convention:
+        // - x0-x7: argument/result registers (can be reordered with care)
+        // - x8: indirect result location register
+        // - x9-x15: temporary registers (can be reordered)
+        // - x16-x17: intra-procedure-call temporary registers
+        // - x18: platform register (may be used by OS)
+        // - x19-x28: callee-saved registers (should not be reordered)
+        // - x29: frame pointer (should not be reordered)
+        // - x30: link register (should not be reordered)
+        // - x31: stack pointer (should not be reordered)
+        // - x32: zero register (should not be reordered)
+
+        // Preserved registers, special registers, and platform register cannot be reordered
+        return !(index >= 19 && index <= 32) && index != 18;
     }
 
     public static LinkedHashMap<Integer, ArmCPUReg> getAllCPURegs() {
@@ -94,7 +92,7 @@ public class ArmCPUReg extends ArmPhyReg {
     }
 
     public static ArmCPUReg getArmRetReg() {
-        return armCPURegs.get(30); // x30 is the link register in ARMv8-A
+        return armCPURegs.get(30); // x30 is the link register in AArch64
     }
 
     public static ArmCPUReg getArmCPURetValueReg() {
@@ -110,19 +108,40 @@ public class ArmCPUReg extends ArmPhyReg {
     }
 
     public static ArmCPUReg getArmArgReg(int argIntIndex) {
-        assert argIntIndex < 8 : "AArch64 only has 8 argument registers x0-x7, requested: " + argIntIndex;
+        assert argIntIndex < 8 : "AArch64 AAPCS64 has 8 argument registers x0-x7, requested: " + argIntIndex;
         return armCPURegs.get(argIntIndex);
     }
 
-    public static ArmCPUReg getPCReg() {
-        // PC is not directly accessible in ARMv8-A like in ARMv7
-        // Return x30 (LR) as it's commonly used for PC-related operations
-        return armCPURegs.get(30);
+    /**
+     * Get zero register (xzr/wzr)
+     * @param is32Bit true for wzr, false for xzr
+     * @return zero register
+     */
+    public static ArmCPUReg getZeroReg(boolean is32Bit) {
+        ArmCPUReg zeroReg = armCPURegs.get(32);
+        return is32Bit ? zeroReg.to32Bit() : zeroReg;
     }
 
-    // Get temporary register for address calculations
+    /**
+     * AArch64 does not have a directly accessible PC register like ARMv7
+     * This method should not be used in AArch64 code generation
+     * @deprecated Use ADRP/ADD for address calculations instead
+     */
+    @Deprecated
+    public static ArmCPUReg getPCReg() {
+        throw new UnsupportedOperationException(
+            "PC register is not directly accessible in AArch64. Use ADRP/ADD for address calculations."
+        );
+    }
+
+    // Get temporary register for address calculations (AArch64 convention)
     public static ArmCPUReg getTempReg() {
-        return armCPURegs.get(16); // x16 is typically used as temporary in AArch64
+        return armCPURegs.get(16); // x16 is intra-procedure-call temporary in AArch64
+    }
+
+    // Get second temporary register if needed
+    public static ArmCPUReg getTempReg2() {
+        return armCPURegs.get(17); // x17 is second intra-procedure-call temporary
     }
 
     public int getIndex() {
