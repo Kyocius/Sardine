@@ -1,7 +1,5 @@
 package Backend.Arm.tools;
 
-import Backend.Arm.Instruction.ArmBranch;
-
 import static java.lang.Math.abs;
 
 public class ArmTools {
@@ -17,19 +15,14 @@ public class ArmTools {
         }
         
         // Check if it's a 12-bit immediate shifted by 12
-        if ((imme & 0xFFF) == 0 && (imme >>> 12) >= 0 && (imme >>> 12) <= 4095) {
+        if ((imme & 0xFFF) == 0 && (imme >>> 12) <= 4095) {
             return true;
         }
         
         // For negative values, check if the positive value can be encoded
         if (imme < 0) {
             int pos = -imme;
-            if (pos >= 0 && pos <= 4095) {
-                return true;
-            }
-            if ((pos & 0xFFF) == 0 && (pos >>> 12) >= 0 && (pos >>> 12) <= 4095) {
-                return true;
-            }
+            return (pos >= 0 && pos <= 4095) || ((pos & 0xFFF) == 0 && (pos >>> 12) <= 4095);
         }
         
         return false;

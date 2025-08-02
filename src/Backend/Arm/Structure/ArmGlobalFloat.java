@@ -9,6 +9,6 @@ public class ArmGlobalFloat extends ArmGlobalValue {
 
     @Override
     public String toString() {
-        return "\t.word\t" + Float.floatToIntBits(value) + "\n";
+        return "\t.float\t" + value + "\n";
     }
 }

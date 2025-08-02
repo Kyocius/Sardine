@@ -16,6 +16,6 @@ public class ArmFma extends ArmInstruction {
         // madd Rd, Rn, Rm, Ra: Rd = Ra + (Rn * Rm)
         return "madd\t" + getDefReg() + ",\t" +
                getOperands().get(0) + ",\t" + getOperands().get(1) + ",\t" +
-               getOperands().get(2);
+               getOperands().get(2) + "\n";
     }
 }

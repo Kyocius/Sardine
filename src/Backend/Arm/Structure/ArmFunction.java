@@ -27,9 +27,9 @@ public class ArmFunction extends ArmLabel {
     private final LinkedHashSet<ArmOperand> allVirRegUsed = new LinkedHashSet<>();
     private final LinkedHashMap<Object, Integer> value2StackPos = new LinkedHashMap<>();
     private final ArrayList<ArmMv> mvs = new ArrayList<>();
-    private ArmVirReg retReg = new ArmVirReg(allocator.getId(), ArmVirReg.RegType.intType, this);
-    private ArrayList<ArmBlock> retBlocks = new ArrayList<>();
-    private ArrayList<ArmPhyReg> protectRegs = new ArrayList<>();
+    private final ArmVirReg retReg = new ArmVirReg(allocator.getId(), ArmVirReg.RegType.intType, this);
+    private final ArrayList<ArmBlock> retBlocks = new ArrayList<>();
+    private final ArrayList<ArmPhyReg> protectRegs = new ArrayList<>();
 
     public ArrayList<ArmBlock> getRetBlocks() {
         return retBlocks;
@@ -138,7 +138,7 @@ public class ArmFunction extends ArmLabel {
             return "";
         StringBuilder sb = new StringBuilder();
         sb.append(".globl").append(" ").append(getName()).append('\n');
-        sb.append(getName().replace("@", "") + ":\n");
+        sb.append(getName().replace("@", "")).append(":\n");
         for(IList.INode<ArmBlock, ArmFunction> block: blocks) {
             sb.append(block.getValue().dump());
         }

@@ -17,14 +17,6 @@ public class ArmModule {
         this.functions.put(functionName, function);
     }
 
-    public ArrayList<ArmGlobalVariable> getDataGlobalVariables() {
-        return this.dataGlobalVariables;
-    }
-
-//    public ArrayList<ArmGlobalVariable> getBssGlobalVariables() {
-//        return this.bssGlobalVariables;
-//    }
-
     public ArmFunction getFunction(String functionName) {
         return functions.get(functionName);
     }
@@ -62,15 +54,18 @@ public class ArmModule {
             }
         }
         sb.append(".text\n");
-        for(ArmFunction function:functions.values()){
-            if(function.getName().equals("main")){
-                sb.append(function.dump());
-                break;
-            }
+
+        // Output main function first if exists
+        ArmFunction mainFunction = functions.get("main");
+        if (mainFunction != null) {
+            sb.append(mainFunction.dump());
         }
-        for(ArmFunction function:functions.values()){
-            if(!(function.getName().equals("main")))
+
+        // Output other functions
+        for (ArmFunction function : functions.values()) {
+            if (!function.getName().equals("main")) {
                 sb.append(function.dump());
+            }
         }
         return sb.toString();
     }

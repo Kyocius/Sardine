@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.*;
 
 public class RegisterAllocator {
-    private ArmModule armModule;
+    private final ArmModule armModule;
     private ArmVirReg.RegType currentType;
     private LinkedHashMap<ArmBlock, LiveInfo> liveInfoMap;
 
@@ -40,13 +40,14 @@ public class RegisterAllocator {
     private LinkedHashMap<ArmOperand, LinkedHashSet<ArmMv>> moveList; // 从一个结点到与该结点相关的传送指令表的映射
     private LinkedHashMap<ArmOperand, ArmOperand> alias; // 传送指令（u，v）合并，且v放入coalescedNodes后，alias(v) = u
     private LinkedHashMap<ArmReg, Integer> color; // 算法为结点选择的颜色
-    private LinkedHashMap<ArmVirReg, LinkedHashSet<ArmReg>> crossConflicts;
-    private boolean canSpillToFPUReg;
 
     private final int INF = 0x7fffffff;
-    private final int K_int = 12;
+    // AArch64: 可用通用寄存器 X4-X15, X19-X28 (共20个)，但保守使用18个避免系统寄存器冲突
+    private final int K_int = 18;
+    // AArch64: 可用SIMD/FP寄存器 V0-V31 (共32个)，但V31通常保留，实际可用31个
     private final int K_float = 31;
     private int K = 0;
+    private boolean canSpillToFPUReg = false;
 
     public RegisterAllocator(ArmModule armModule) {
         this.armModule = armModule;

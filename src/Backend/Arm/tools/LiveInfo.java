@@ -12,9 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 
 public class LiveInfo {
-    private LinkedHashSet<ArmReg> liveUse;
-    private LinkedHashSet<ArmReg> liveDef;
-    private LinkedHashSet<ArmReg> liveIn;
+    private final LinkedHashSet<ArmReg> liveUse;
+    private final LinkedHashSet<ArmReg> liveDef;
+    private final LinkedHashSet<ArmReg> liveIn;
     private LinkedHashSet<ArmReg> liveOut;
 
     public LiveInfo() {
@@ -44,9 +44,9 @@ public class LiveInfo {
         this.liveOut = liveOut;
     }
 
-    public static LinkedHashMap<ArmBlock, Backend.Arm.tools.LiveInfo> liveInfoAnalysis(ArmFunction function) {
+    public static LinkedHashMap<ArmBlock, LiveInfo> liveInfoAnalysis(ArmFunction function) {
         //分析liveUse liveDef
-        LinkedHashMap<ArmBlock, Backend.Arm.tools.LiveInfo> liveInfoHashMap = new LinkedHashMap<>();
+        LinkedHashMap<ArmBlock, LiveInfo> liveInfoHashMap = new LinkedHashMap<>();
         for (IList.INode<ArmBlock, ArmFunction>
              blockNode = function.getBlocks().getHead();
              blockNode != null; blockNode = blockNode.getNext()) {
@@ -54,7 +54,7 @@ public class LiveInfo {
             if(block.getArmInstructions().isEmpty()) {
                 continue;
             }
-            Backend.Arm.tools.LiveInfo liveInfo = new Backend.Arm.tools.LiveInfo();
+            LiveInfo liveInfo = new LiveInfo();
             liveInfoHashMap.put(block, liveInfo);
             for (IList.INode<ArmInstruction, ArmBlock>
                  insNode = block.getArmInstructions().getHead();
@@ -74,7 +74,7 @@ public class LiveInfo {
             liveInfo.liveIn.addAll(liveInfo.liveUse);
         }
         //计算LiveIn 计算LiveOut
-        Boolean changed = true;
+        boolean changed = true;
         while(changed) {
             changed = false;
             for (IList.INode<ArmBlock, ArmFunction>
@@ -83,7 +83,7 @@ public class LiveInfo {
                 ArmBlock block = blockNode.getValue();
                 LinkedHashSet<ArmReg> newLiveOut = new LinkedHashSet<>();
 
-                Backend.Arm.tools.LiveInfo oldInfo = liveInfoHashMap.get(block);
+                LiveInfo oldInfo = liveInfoHashMap.get(block);
 
                 for(var succs: block.getSuccs()) {
                     assert liveInfoHashMap.containsKey(succs);

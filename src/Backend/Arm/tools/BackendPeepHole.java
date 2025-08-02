@@ -6,7 +6,6 @@ import Backend.Arm.Operand.*;
 import Backend.Arm.Structure.ArmBlock;
 import Backend.Arm.Structure.ArmFunction;
 import Backend.Arm.Structure.ArmModule;
-import Backend.Riscv.Instruction.RiscvBranch;
 import Utils.DataStruct.IList;
 
 import java.io.BufferedWriter;
@@ -17,10 +16,10 @@ import java.util.*;
 import static Backend.Arm.Operand.ArmCPUReg.getArmSpReg;
 
 public class BackendPeepHole {
-    private ArmModule armModule;
+    private final ArmModule armModule;
     private ArmFunction armFunc;
     private LinkedHashMap<ArmBlock, LiveInfo> liveInfoMap;
-    private LinkedHashSet<ArmReg> influencedReg;
+    private final LinkedHashSet<ArmReg> influencedReg;
 
     public BackendPeepHole(ArmModule armModule) {
         this.armModule = armModule;
@@ -195,7 +194,7 @@ public class BackendPeepHole {
         if (insNode.getValue() instanceof ArmLi && insNode.getNext() != null
                 && insNode.getValue().getOperands().get(0) instanceof ArmStackFixer) {
             IList.INode<ArmInstruction, ArmBlock> afterNode = insNode.getNext();
-            int load = ((ArmStackFixer) insNode.getValue().getOperands().get(0)).getValue();
+            int load = ((ArmStackFixer) insNode.getValue().getOperands().get(0)).getIntValue();
             if (afterNode.getValue() instanceof ArmBinary) {
                 if (afterNode.getValue().getDefReg() == ArmCPUReg.getArmSpReg()) {
                     if (load >= 4095 || load <= -4095 || !ArmTools.isArmImmCanBeEncoded(-1 * load)

@@ -22,7 +22,7 @@ public class ArmLoad extends ArmInstruction {
                 // AArch64 ldr immediate offset range check
                 // Unscaled: -256 to +255
                 // Scaled: 0 to +32760 (multiple of 8 for 64-bit, 4 for 32-bit)
-                int offset = imm.getValue();
+                int offset = imm.getIntValue();
                 
                 // Check unscaled immediate range
                 if (offset >= -256 && offset <= 255) {

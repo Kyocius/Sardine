@@ -21,7 +21,7 @@ public class ArmFSw extends ArmInstruction {
                 return "str\t" + getOperands().getFirst() + ",\t[" + getOperands().get(1) + "]";
             } else {
                 // AArch64 floating-point store offset range: 0 to +32760, multiple of 8
-                int offset = imm.getValue();
+                int offset = imm.getIntValue();
                 if (offset >= 0 && offset <= 32760 && offset % 8 == 0) {
                     return "str\t" + getOperands().getFirst() + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
                 } else {

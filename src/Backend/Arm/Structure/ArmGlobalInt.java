@@ -13,6 +13,6 @@ public class ArmGlobalInt extends ArmGlobalValue {
 
     @Override
     public String toString() {
-        return "\t.word\t" + value + "\n";
+        return "\t.4byte\t" + value + "\n";
     }
 }
