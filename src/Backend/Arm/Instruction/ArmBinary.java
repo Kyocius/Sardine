@@ -61,17 +61,15 @@ public class ArmBinary extends ArmInstruction {
     public enum ArmBinaryType{
         add,
         sub,
-        rsb,
+        // rsb,  // Removed: RSB is not available in AArch64
         mul,
         sdiv,
-        srem,
+        // srem,  // Removed: SREM is not a direct instruction in AArch64, use sdiv + msub
         orr,
         and,
-        asr, // 算数右移
-        lsl, // 逻辑左移(就是左移)
-        lsr, // 逻辑右移
-        ror, // 循环右移
-        rrx,  // 扩展循环右移
+        // Move shift operations to be used as modifiers, not standalone instructions
+        // asr, lsl, lsr, ror should be used as shift modifiers, not binary operations
+        // rrx,  // RRX is limited in AArch64
         eor,
         vadd,
         vsub,
@@ -91,6 +89,14 @@ public class ArmBinary extends ArmInstruction {
         ands,    // bitwise AND and set flags
         adcs,    // add with carry and set flags
         sbcs,    // subtract with carry and set flags
+        // Additional AArch64 instructions
+        adc,     // add with carry (without setting flags)
+        sbc,     // subtract with carry (without setting flags)
+        // Shift instructions as separate operations (when needed)
+        asrv,    // arithmetic shift right variable
+        lslv,    // logical shift left variable
+        lsrv,    // logical shift right variable
+        rorv,    // rotate right variable
     }
 
     public String binaryTypeToString(){
@@ -101,19 +107,11 @@ public class ArmBinary extends ArmInstruction {
             case sub -> {
                 return "sub";
             }
-            case rsb -> {
-                // ARMv8-A: rsb (reverse subtract) needs special handling
-                // Will be handled in toString() method to swap operands
-                return "sub";
-            }
             case mul -> {
                 return "mul";
             }
             case sdiv -> {
                 return "sdiv";
-            }
-            case srem -> {
-                return "srem";
             }
             case vadd -> {
                 return "fadd";
@@ -132,21 +130,6 @@ public class ArmBinary extends ArmInstruction {
             }
             case orr -> {
                 return "orr";
-            }
-            case asr -> {
-                return "asr";
-            }
-            case lsl -> {
-                return "lsl";
-            }
-            case lsr -> {
-                return "lsr";
-            }
-            case ror -> {
-                return "ror";
-            }
-            case rrx -> {
-                return "rrx";
             }
             case eor -> {
                 return "eor";
@@ -191,6 +174,24 @@ public class ArmBinary extends ArmInstruction {
             case sbcs -> {
                 return "sbcs";
             }
+            case adc -> {
+                return "adc";
+            }
+            case sbc -> {
+                return "sbc";
+            }
+            case asrv -> {
+                return "asrv";
+            }
+            case lslv -> {
+                return "lslv";
+            }
+            case lsrv -> {
+                return "lsrv";
+            }
+            case rorv -> {
+                return "rorv";
+            }
         }
         return null;
     }
@@ -214,21 +215,17 @@ public class ArmBinary extends ArmInstruction {
             }
         }
         
+        // Handle variable shift instructions (3 operands: rd, rn, rm)
+        if (instType == ArmBinaryType.asrv || instType == ArmBinaryType.lslv ||
+            instType == ArmBinaryType.lsrv || instType == ArmBinaryType.rorv) {
+            return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
+                    getOperands().get(0) + ",\t" + getOperands().get(1);
+        }
+
         if (shiftBit == 0) {
-            // Special handling for RSB (reverse subtract): swap operands
-            if (instType == ArmBinaryType.rsb) {
-                return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
-                        getOperands().get(1) + ",\t" + getOperands().get(0);
-            }
             return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
                     getOperands().get(0) + ",\t" + getOperands().get(1);
         } else {
-            // Special handling for RSB with shift: swap operands
-            if (instType == ArmBinaryType.rsb) {
-                return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
-                        getOperands().get(1) + ",\t" + getOperands().get(0) + ",\t" + shiftTypeToString() + " #"
-                        + shiftBit;
-            }
             return binaryTypeToString() + "\t" + getDefReg() + ",\t" +
                     getOperands().get(0) + ",\t" + getOperands().get(1) + ",\t" + shiftTypeToString() + " #"
                     + shiftBit;

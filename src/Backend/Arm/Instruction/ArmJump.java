@@ -17,6 +17,7 @@ public class ArmJump extends ArmInstruction {
 
     @Override
     public String toString() {
-        return "b\t" + getOperands().get(0);
+        // AArch64 unconditional branch instruction
+        return "b\t" + getOperands().getFirst();
     }
 }

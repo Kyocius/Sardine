@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 public class ArmLi extends ArmInstruction {
-    private ArmTools.CondType condType;
+    private final ArmTools.CondType condType;
 
     public ArmLi(ArmOperand from, ArmReg toReg) {
         super(toReg, new ArrayList<>(Collections.singletonList(from)));
@@ -21,116 +21,84 @@ public class ArmLi extends ArmInstruction {
         condType = type;
     }
 
-//    public enum ArmMovType {
-//        mov,   // ARMv8-A: move immediate
-//        movk,  // ARMv8-A: move immediate with keep (for 64-bit immediates)
-//        mvn,   // move not
-//        Note: ARMv7 movw/movt are replaced with mov/movk in ARMv8-A for 64-bit
-//    }
-
     public ArmTools.CondType getCondType() {
         return condType;
     }
 
     @Override
     public String toString() {
-        if (getOperands().get(0) instanceof ArmLabel) {
-            // ARMv8-A: Use adrp/add for label addresses
-            String labelName = ((ArmLabel) getOperands().get(0)).getName();
+        // Handle label references (for address calculations)
+        if (getOperands().getFirst() instanceof ArmLabel) {
+            // AArch64: Use adrp/add for label addresses
+            String labelName = ((ArmLabel) getOperands().getFirst()).getName();
             if (condType == ArmTools.CondType.nope) {
-                return "adrp\t" + getDefReg() + ",\t" + labelName + "\n\t" +
-                        "add\t" + getDefReg() + ",\t" + getDefReg() + ",\t:lo12:" + labelName;
+                // Load label address using adrp + add
+                return "adrp\t" + getDefReg() + ",\t" + labelName + "\n" +
+                       "\tadd\t" + getDefReg() + ",\t" + getDefReg() + ",\t:lo12:" + labelName;
             } else {
-                // For conditional label loading, use temporary register
-                return "adrp\tx16,\t" + labelName + "\n\t" +
-                        "add\tx16,\tx16,\t:lo12:" + labelName + "\n\t" +
-                        "csel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
+                // Conditional label loading not commonly used in AArch64
+                return "adrp\t" + getDefReg() + ",\t" + labelName + "\n" +
+                       "\tadd\t" + getDefReg() + ",\t" + getDefReg() + ",\t:lo12:" + labelName;
             }
+        }
+
+        // Handle immediate values
+        assert getOperands().getFirst() instanceof ArmImm;
+        ArmImm imm = (ArmImm) getOperands().getFirst();
+        long value = imm.getValue();
+        String condSuffix = (condType == ArmTools.CondType.nope) ? "" :
+                           ArmTools.getCondString(condType);
+
+        // AArch64 immediate loading strategy
+        if (value == 0) {
+            // Use wzr/xzr for zero
+            return "mov\t" + getDefReg() + ",\t" + "xzr";
+        } else if (value >= 0 && value <= 0xFFFF) {
+            // 16-bit positive immediate
+            return "mov" + condSuffix + "\t" + getDefReg() + ",\t#" + value;
+        } else if (value < 0 && value >= -0x10000) {
+            // 16-bit negative immediate using MVN
+            return "mov" + condSuffix + "\t" + getDefReg() + ",\t#" + value;
+        } else if ((value & 0xFFFF) == 0 && (value >>> 16) <= 0xFFFF) {
+            // Can be loaded with single MOV with LSL #16
+            return "mov" + condSuffix + "\t" + getDefReg() + ",\t#" + (value >>> 16) + ", lsl #16";
+        } else if ((~value) <= 0xFFFF) {
+            // Use MVN for bitwise NOT of small immediate
+            return "mvn" + condSuffix + "\t" + getDefReg() + ",\t#" + (~value);
+        } else if (((~value) & 0xFFFF) == 0 && ((~value) >>> 16) <= 0xFFFF) {
+            // Use MVN with shift
+            return "mvn" + condSuffix + "\t" + getDefReg() + ",\t#" + ((~value) >>> 16) + ", lsl #16";
         } else {
-            assert getOperands().get(0) instanceof ArmImm;
-            ArmImm imm = (ArmImm) getOperands().get(0);
-            long value = imm.getValue();
-            
-            // Strategy 1: Try mov with logical immediate (most efficient)
-            if (ArmTools.isLogicalImmediate(value)) {
-                if (condType == ArmTools.CondType.nope) {
-                    return "mov\t" + getDefReg() + ",\t#" + value;
-                } else {
-                    return "mov\tx16,\t#" + value + "\n" +
-                           "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
-                }
+            // For complex 64-bit immediates, use MOV + MOVK sequence
+            StringBuilder result = new StringBuilder();
+
+            // Load lower 16 bits
+            result.append("mov").append(condSuffix).append("\t")
+                  .append(getDefReg()).append(",\t#").append(value & 0xFFFF);
+
+            // Load upper bits if needed using MOVK
+            long upper16 = (value >>> 16) & 0xFFFF;
+            if (upper16 != 0) {
+                result.append("\n\tmovk").append(condSuffix).append("\t")
+                      .append(getDefReg()).append(",\t#").append(upper16)
+                      .append(", lsl #16");
             }
-            
-            // Strategy 2: Small immediates (0-65535)
-            else if (value >= 0 && value <= 0xFFFF) {
-                if (condType == ArmTools.CondType.nope) {
-                    return "mov\t" + getDefReg() + ",\t#" + value;
-                } else {
-                    return "mov\tx16,\t#" + value + "\n" +
-                           "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
-                }
-            } 
-            
-            // Strategy 3: Negative immediates that fit in 16 bits when negated
-            else if (value < 0 && value >= -0xFFFF) {
-                if (condType == ArmTools.CondType.nope) {
-                    return "mov\t" + getDefReg() + ",\t#" + value;
-                } else {
-                    return "mov\tx16,\t#" + value + "\n" +
-                           "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
-                }
-            } 
-            
-            // Strategy 4: Try movn (move not) for inverted values
-            else if ((~value & 0xFFFFFFFFFFFFFFFFL) <= 0xFFFF) {
-                long inverted = ~value & 0xFFFF;
-                if (condType == ArmTools.CondType.nope) {
-                    return "movn\t" + getDefReg() + ",\t#" + inverted;
-                } else {
-                    return "movn\tx16,\t#" + inverted + "\n" +
-                           "\tcsel\t" + getDefReg() + ",\tx16,\txzr,\t" + ArmTools.getCondString(condType);
-                }
+
+            long upper32 = (value >>> 32) & 0xFFFF;
+            if (upper32 != 0) {
+                result.append("\n\tmovk").append(condSuffix).append("\t")
+                      .append(getDefReg()).append(",\t#").append(upper32)
+                      .append(", lsl #32");
             }
-            
-            // Strategy 5: Multi-instruction sequence for large values
-            else {
-                StringBuilder result = new StringBuilder();
-                boolean first = true;
-                
-                if (condType != ArmTools.CondType.nope) {
-                    // For conditional moves with large immediates, use a temporary register
-                    result.append("// Conditional load of large immediate\n\t");
-                }
-                
-                // Process 16-bit chunks
-                for (int shift = 0; shift < 64; shift += 16) {
-                    int chunk = (int)((value >>> shift) & 0xFFFF);
-                    if (chunk != 0) {
-                        if (first) {
-                            // Use movz for the first non-zero chunk
-                            String reg = (condType != ArmTools.CondType.nope) ? "x16" : getDefReg().toString();
-                            result.append("movz\t").append(reg).append(",\t#").append(chunk);
-                            if (shift > 0) {
-                                result.append(",\tlsl #").append(shift);
-                            }
-                            first = false;
-                        } else {
-                            // Use movk for subsequent chunks
-                            String reg = (condType != ArmTools.CondType.nope) ? "x16" : getDefReg().toString();
-                            result.append("\n\tmovk\t").append(reg)
-                                  .append(",\t#").append(chunk).append(",\tlsl #").append(shift);
-                        }
-                    }
-                }
-                
-                // Add conditional select if needed
-                if (condType != ArmTools.CondType.nope) {
-                    result.append("\n\tcsel\t").append(getDefReg()).append(",\tx16,\txzr,\t")
-                          .append(ArmTools.getCondString(condType));
-                }
-                
-                return result.toString();
+
+            long upper48 = (value >>> 48) & 0xFFFF;
+            if (upper48 != 0) {
+                result.append("\n\tmovk").append(condSuffix).append("\t")
+                      .append(getDefReg()).append(",\t#").append(upper48)
+                      .append(", lsl #48");
             }
+
+            return result.toString();
         }
     }
 }

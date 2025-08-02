@@ -7,6 +7,10 @@ import Backend.Arm.Operand.ArmReg;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+/**
+ * AArch64 store instruction
+ * str: store register to memory with immediate or register offset
+ */
 public class ArmSw extends ArmInstruction {
     public ArmSw(ArmReg storeReg, ArmReg offReg, ArmOperand armImm) {
         //TODO:后续可以引入增强 STR R0,[R1],＃8 e.g.
@@ -15,10 +19,9 @@ public class ArmSw extends ArmInstruction {
 
     @Override
     public String toString() {
-        if (getOperands().get(2) instanceof ArmImm) {
-            ArmImm imm = (ArmImm) getOperands().get(2);
+        if (getOperands().get(2) instanceof ArmImm imm) {
             if (imm.getValue() == 0) {
-                return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + "]";
+                return "str\t" + getOperands().getFirst() + ",\t[" + getOperands().get(1) + "]";
             } else {
                 // AArch64 str immediate offset range check
                 // Unscaled: -256 to +255
@@ -27,21 +30,24 @@ public class ArmSw extends ArmInstruction {
                 
                 // Check unscaled immediate range
                 if (offset >= -256 && offset <= 255) {
-                    return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
+                    return "str\t" + getOperands().getFirst() + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
                 }
                 // Check scaled immediate range (assuming 8-byte alignment for 64-bit)
                 else if (offset >= 0 && offset <= 32760 && offset % 8 == 0) {
-                    return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
-                } 
-                // For large offsets, use temporary register x16
+                    return "str\t" + getOperands().getFirst() + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
+                }
+                // Handle out-of-range offsets using temporary register
                 else {
+                    ArmReg baseReg = (ArmReg) getOperands().get(1);
+                    ArmReg storeReg = (ArmReg) getOperands().getFirst();
                     return "mov\tx16,\t#" + offset + "\n" +
-                           "\tadd\tx16,\t" + getOperands().get(1) + ",\tx16\n" +
-                           "\tstr\t" + getOperands().get(0) + ",\t[x16]";
+                           "\tadd\tx16,\t" + baseReg + ",\tx16\n" +
+                           "\tstr\t" + storeReg + ",\t[x16]";
                 }
             }
         } else {
-            return "str\t" + getOperands().get(0) + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
+            // Register offset
+            return "str\t" + getOperands().getFirst() + ",\t[" + getOperands().get(1) + ", " + getOperands().get(2) + "]";
         }
     }
 }

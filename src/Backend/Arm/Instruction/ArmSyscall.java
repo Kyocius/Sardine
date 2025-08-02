@@ -1,12 +1,14 @@
 package Backend.Arm.Instruction;
 
 import Backend.Arm.Operand.ArmImm;
-import Backend.Arm.Operand.ArmLabel;
-import Backend.Arm.Structure.ArmBlock;
 
 import java.util.ArrayList;
 import java.util.Collections;
 
+/**
+ * AArch64 supervisor call instruction
+ * svc: supervisor call to invoke system services
+ */
 public class ArmSyscall extends ArmInstruction {
     public ArmSyscall(ArmImm syscallNum) {
         super(null, new ArrayList<>(Collections.singletonList(syscallNum)));
@@ -14,6 +16,7 @@ public class ArmSyscall extends ArmInstruction {
 
     @Override
     public String toString() {
-        return "svc\t" + getOperands().get(0); // ARMv8-A uses svc instead of swi
+        // AArch64 uses svc (supervisor call) instead of ARMv7's swi (software interrupt)
+        return "svc\t" + getOperands().getFirst();
     }
 }

@@ -7,10 +7,13 @@ import Utils.DataStruct.IList;
 
 import java.util.ArrayList;
 
-public class ArmInstruction {
-    public ArmReg defReg;
-
-    public ArrayList<ArmOperand> operands;
+/**
+ * AArch64 instruction base class
+ * Abstract base class for all ARM instruction types
+ */
+public abstract class ArmInstruction {
+    protected ArmReg defReg;
+    protected ArrayList<ArmOperand> operands;
 
     public ArmInstruction() {
         this.defReg = null;
@@ -25,29 +28,34 @@ public class ArmInstruction {
 
     public void replaceOperands(ArmReg armReg1, ArmOperand armReg2,
                                 IList.INode<ArmInstruction, ArmBlock> armInstructionNode) {
-        for(int i = 0; i < operands.size(); i++) {
-            if(operands.get(i).equals(armReg1)) {
+        for (int i = 0; i < operands.size(); i++) {
+            if (operands.get(i).equals(armReg1)) {
                 operands.get(i).getUsers().remove(armInstructionNode);
                 armReg2.getUsers().add(armInstructionNode);
                 operands.set(i, armReg2);
-                // riscvReg2.addDefOrUse(riscvInstructionNode.getParent().loopdepth, riscvInstructionNode.getParent().loop);
             }
         }
     }
 
     public void replaceDefReg(ArmReg armReg, IList.INode<ArmInstruction, ArmBlock> armInstructionNode) {
+        if (defReg != null) {
+            defReg.getUsers().remove(armInstructionNode);
+        }
         defReg = armReg;
-        armReg.getUsers().remove(armInstructionNode);
-        defReg.getUsers().add(armInstructionNode);
-        // defReg.addDefOrUse(riscvInstructionNode.getParent().loopdepth, riscvInstructionNode.getParent().loop);
+        if (armReg != null) {
+            armReg.getUsers().add(armInstructionNode);
+        }
+    }
+
+    // Getter methods
+    public ArmReg getDefReg() {
+        return defReg;
     }
 
     public ArrayList<ArmOperand> getOperands() {
-        return this.operands;
+        return operands;
     }
 
-    public ArmReg getDefReg() {
-        return this.defReg;
-    }
-
+    // Abstract method that must be implemented by subclasses
+    public abstract String toString();
 }

@@ -1,26 +1,23 @@
 package Backend.Arm.Instruction;
 
-import Backend.Arm.Operand.ArmImm;
-import Backend.Arm.Operand.ArmOperand;
 import Backend.Arm.Operand.ArmReg;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 
+/**
+ * AArch64 signed multiply long instruction
+ * smull: 32-bit × 32-bit signed multiplication producing 64-bit result
+ */
 public class ArmSmull extends ArmInstruction {
-    private ArrayList<ArmReg> defRegs = new ArrayList<>();
-
-    public ArmSmull(ArmReg defReg1, ArmReg defReg2, ArmReg reg1, ArmReg reg2) {
-        super(defReg1, new ArrayList<>(Arrays.asList(reg1, reg2)));
-        defRegs.add(defReg1);
-        defRegs.add(defReg2);
+    public ArmSmull(ArmReg destReg, ArmReg reg1, ArmReg reg2) {
+        super(destReg, new ArrayList<>(Arrays.asList(reg1, reg2)));
     }
 
     @Override
     public String toString() {
-        // ARMv8-A signed multiply long (32-bit operands produce 64-bit result)
-        // Note: In AArch64, smull operates on 32-bit w registers to produce 64-bit x result
-        return "smull\t" + defRegs.get(0) + ",\t"
-                +  getOperands().get(0) +  ",\t" + getOperands().get(1);
+        // AArch64 signed multiply long: smull Xd, Wn, Wm
+        // Multiplies two 32-bit signed values to produce a 64-bit result
+        return "smull\t" + getDefReg() + ",\t" + getOperands().getFirst() + ",\t" + getOperands().get(1);
     }
 }

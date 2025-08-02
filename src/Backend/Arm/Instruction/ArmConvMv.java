@@ -3,7 +3,6 @@ package Backend.Arm.Instruction;
 import Backend.Arm.Operand.ArmReg;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 
 public class ArmConvMv extends ArmInstruction {
@@ -14,7 +13,8 @@ public class ArmConvMv extends ArmInstruction {
 
     @Override
     public String toString() {
-        // ARMv8-A: move between general-purpose and SIMD&FP registers
-        return "fmov\t" + getDefReg() + ",\t" + getOperands().get(0);
+        // AArch64 fmov instruction format: fmov dest, src
+        // Supports move between general-purpose and SIMD&FP registers
+        return "fmov\t" + getDefReg() + ",\t" + getOperands().getFirst();
     }
 }

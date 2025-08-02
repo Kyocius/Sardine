@@ -7,6 +7,10 @@ import Backend.Arm.Operand.ArmReg;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+/**
+ * AArch64 floating-point load instruction
+ * ldr: load floating-point value from memory to FP/SIMD register
+ */
 public class ArmVLoad extends ArmInstruction {
     public ArmVLoad(ArmReg baseReg, ArmOperand offset, ArmReg defReg) {
         super(defReg, new ArrayList<>(Arrays.asList(baseReg, offset)));
@@ -14,25 +18,26 @@ public class ArmVLoad extends ArmInstruction {
 
     @Override
     public String toString() {
-        if (getOperands().get(1) instanceof ArmImm) {
-            ArmImm imm = (ArmImm) getOperands().get(1);
+        if (getOperands().get(1) instanceof ArmImm imm) {
             if (imm.getValue() == 0) {
-                // ARMv8-A floating-point load
-                return "ldr\t" + getDefReg() + ",\t[" + getOperands().get(0) +  "]";
+                // AArch64 floating-point load with zero offset
+                return "ldr\t" + getDefReg() + ",\t[" + getOperands().getFirst() + "]";
             } else {
                 // AArch64 floating-point load offset range: 0 to +32760, multiple of 8
                 int offset = imm.getValue();
                 if (offset >= 0 && offset <= 32760 && offset % 8 == 0) {
-                    return "ldr\t" + getDefReg() + ",\t[" + getOperands().get(0) + ", " + getOperands().get(1) + "]";
+                    return "ldr\t" + getDefReg() + ",\t[" + getOperands().getFirst() + ", " + getOperands().get(1) + "]";
                 } else {
-                    // For invalid offsets, use temporary register
+                    // Handle out-of-range offsets using temporary register x16
+                    ArmReg baseReg = (ArmReg) getOperands().getFirst();
                     return "mov\tx16,\t#" + offset + "\n" +
-                           "\tadd\tx16,\t" + getOperands().get(0) + ",\tx16\n" +
+                           "\tadd\tx16,\t" + baseReg + ",\tx16\n" +
                            "\tldr\t" + getDefReg() + ",\t[x16]";
                 }
             }
         } else {
-            return "ldr\t" + getDefReg() + ",\t[" + getOperands().get(0) + ", " + getOperands().get(1) + "]";
+            // Register offset addressing
+            return "ldr\t" + getDefReg() + ",\t[" + getOperands().getFirst() + ", " + getOperands().get(1) + "]";
         }
     }
 }

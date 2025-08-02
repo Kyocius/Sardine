@@ -1,7 +1,6 @@
 package Backend.Arm.Instruction;
 
 import Backend.Arm.Operand.ArmFloatImm;
-import Backend.Arm.Operand.ArmImm;
 import Backend.Arm.Operand.ArmOperand;
 import Backend.Arm.Operand.ArmReg;
 
@@ -14,9 +13,9 @@ public class ArmFLi extends ArmInstruction {
         assert from instanceof ArmFloatImm;
     }
 
-    //vmov	s1,	#4.0e0
+    // AArch64: fmov d1, #4.0 (changed from vmov to fmov)
     @Override
     public String toString() {
-        return "vmov\t" + getDefReg() + ",\t" + getOperands().get(0);
+        return "fmov\t" + getDefReg() + ",\t" + getOperands().getFirst();
     }
 }

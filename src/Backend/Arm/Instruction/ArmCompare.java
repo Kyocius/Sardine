@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 public class ArmCompare extends ArmInstruction {
-    private CmpType type;
-    
+    private final CmpType type;
+
     public ArmCompare(ArmOperand left, ArmOperand right, CmpType type) {
         super(null, new ArrayList<>(Arrays.asList(left, right)));
         this.type = type;
@@ -19,6 +19,13 @@ public class ArmCompare extends ArmInstruction {
         ccmp,   // conditional compare (AArch64)
         ccmn,   // conditional compare negative (AArch64)
         tst,    // test bits (logical AND and set flags)
+        // AArch64 specific floating-point compare instructions
+        fcmp,   // floating-point compare
+        fcmpe,  // floating-point compare with exception
+    }
+
+    public CmpType getType() {
+        return type;
     }
 
     public String getCmpTypeStr() {
@@ -38,16 +45,19 @@ public class ArmCompare extends ArmInstruction {
             case tst -> {
                 return "tst";
             }
+            case fcmp -> {
+                return "fcmp";
+            }
+            case fcmpe -> {
+                return "fcmpe";
+            }
         }
         return null;
     }
 
-    public CmpType getType() {
-        return type;
-    }
-
     @Override
     public String toString() {
-        return getCmpTypeStr() + "\t" + getOperands().get(0) + ",\t" + getOperands().get(1);
+        // AArch64 compare instruction format: cmp[type] operand1, operand2
+        return getCmpTypeStr() + "\t" + getOperands().getFirst() + ",\t" + getOperands().get(1);
     }
 }

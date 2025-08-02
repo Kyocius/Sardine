@@ -14,16 +14,16 @@ public class ArmBarrier extends ArmInstruction {
     }
 
     public enum BarrierOption {
-        sy,     // Full system
-        st,     // Store
-        ld,     // Load
-        ish,    // Inner shareable
+        sy,     // Full system - strongest barrier
+        st,     // Store operations only
+        ld,     // Load operations only
+        ish,    // Inner shareable domain
         ishst,  // Inner shareable store
         ishld,  // Inner shareable load
-        nsh,    // Non-shareable
+        nsh,    // Non-shareable domain
         nshst,  // Non-shareable store
         nshld,  // Non-shareable load
-        osh,    // Outer shareable
+        osh,    // Outer shareable domain
         oshst,  // Outer shareable store
         oshld   // Outer shareable load
     }
@@ -43,10 +43,37 @@ public class ArmBarrier extends ArmInstruction {
 
     @Override
     public String toString() {
-        if (type == BarrierType.isb) {
-            return "isb"; // ISB doesn't take options in most cases
+        // ISB can take options but typically uses sy (system-wide)
+        if (type == BarrierType.isb && option == BarrierOption.sy) {
+            return "isb"; // Common case: ISB with default sy option
         } else {
             return type.toString() + "\t" + option.toString();
         }
+    }
+
+    // Getter methods for better encapsulation
+    public BarrierType getType() {
+        return type;
+    }
+
+    public BarrierOption getOption() {
+        return option;
+    }
+
+    // Static factory methods for common barrier patterns
+    public static ArmBarrier fullSystemBarrier() {
+        return new ArmBarrier(BarrierType.dmb, BarrierOption.sy);
+    }
+
+    public static ArmBarrier instructionBarrier() {
+        return new ArmBarrier(BarrierType.isb);
+    }
+
+    public static ArmBarrier storeBarrier() {
+        return new ArmBarrier(BarrierType.dmb, BarrierOption.st);
+    }
+
+    public static ArmBarrier loadBarrier() {
+        return new ArmBarrier(BarrierType.dmb, BarrierOption.ld);
     }
 }

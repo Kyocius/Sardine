@@ -6,23 +6,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 public class ArmFma extends ArmInstruction {
-    private boolean signed = false;
-
-    public ArmFma(ArmReg mulOp1,
-                  ArmReg mulOp2, ArmReg addOp, ArmReg defReg) {
+    public ArmFma(ArmReg mulOp1, ArmReg mulOp2, ArmReg addOp, ArmReg defReg) {
         super(defReg, new ArrayList<>(Arrays.asList(mulOp1, mulOp2, addOp)));
-    }
-
-    public void setSigned(boolean signed) {
-        this.signed = signed;
     }
 
     @Override
     public String toString() {
         // AArch64 uses madd instruction for multiply-accumulate
         // madd Rd, Rn, Rm, Ra: Rd = Ra + (Rn * Rm)
-        return "\tmadd\t" +
-                getDefReg() + ",\t" + getOperands().get(0) + ",\t" + getOperands().get(1) + ",\t" +
-                getOperands().get(2) + "\n";
+        return "madd\t" + getDefReg() + ",\t" +
+               getOperands().get(0) + ",\t" + getOperands().get(1) + ",\t" +
+               getOperands().get(2);
     }
 }

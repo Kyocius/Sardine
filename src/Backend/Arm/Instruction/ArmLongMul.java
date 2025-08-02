@@ -1,6 +1,5 @@
 package Backend.Arm.Instruction;
 
-import Backend.Arm.Operand.ArmOperand;
 import Backend.Arm.Operand.ArmReg;
 
 import java.util.ArrayList;
@@ -13,8 +12,8 @@ public class ArmLongMul extends ArmInstruction {
 
     @Override
     public String toString() {
-        // AArch64: Use smulh for signed multiply high (64-bit result, return high 64 bits)
+        // AArch64: Use smulh for signed multiply high (64-bit * 64-bit = 128-bit, return high 64 bits)
         return "smulh\t" + getDefReg() +
-                ",\t" + getOperands().get(0) + ",\t" + getOperands().get(1);
+                ",\t" + getOperands().getFirst() + ",\t" + getOperands().get(1);
     }
 }
