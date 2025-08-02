@@ -172,154 +172,187 @@ public class ArmCodeGen {
         addInstr(new ArmRet(ArmCPUReg.getArmRetReg(), null), null, false);
     }
 
-    public void buildParallelEnd(ArmFunction parallelEnd) {
-        curArmFunction = parallelEnd;
-        ArmBlock armBlock0 = new ArmBlock("parallel_end0");
-        ArmBlock armBlock1 = new ArmBlock("parallel_end1");
-        ArmBlock armBlock2 = new ArmBlock("parallel_end2");
-        ArmBlock armBlock3 = new ArmBlock("parallel_end3");
-        ArmBlock armBlock4 = new ArmBlock("parallel_end4");
+    // 构建并结束并行区块，符合 AArch64 标准
+        public void buildParallelEnd(ArmFunction parallelEnd) {
+            curArmFunction = parallelEnd;
+            ArmBlock armBlock0 = new ArmBlock("parallel_end0");
+            ArmBlock armBlock1 = new ArmBlock("parallel_end1");
+            ArmBlock armBlock2 = new ArmBlock("parallel_end2");
+            ArmBlock armBlock3 = new ArmBlock("parallel_end3");
+            ArmBlock armBlock4 = new ArmBlock("parallel_end4");
 
-        ArmGlobalVariable stoR7 = new ArmGlobalVariable("parallell_endR7",
-                false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
-        armModule.addBssVar(stoR7);
-        ArmGlobalVariable stoLr = new ArmGlobalVariable("parallell_endLR",
-                false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
-        armModule.addBssVar(stoLr);
+            // 并行结束时保存 R7 和 LR 的全局变量
+            ArmGlobalVariable stoR7 = new ArmGlobalVariable("parallell_endR7",
+                    false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
+            armModule.addBssVar(stoR7);
+            ArmGlobalVariable stoLr = new ArmGlobalVariable("parallell_endLR",
+                    false, 8, new ArrayList<>(List.of(new ArmGlobalZero(8))));
+            armModule.addBssVar(stoLr);
 
-        curArmBlock = armBlock0;
-        curArmFunction.addBlock(new IList.INode<>(curArmBlock));
-        addInstr(new ArmCompare(ArmCPUReg.getArmCPUReg(0), new ArmImm(0), ArmCompare.CmpType.cmp),
-                null, false);
-        addInstr(new ArmBranch(armBlock2, ArmTools.CondType.eq), null, false);
+            curArmBlock = armBlock0;
+            curArmFunction.addBlock(new IList.INode<>(curArmBlock));
+            // 判断 x0 是否为 0，决定是否退出
+            addInstr(new ArmCompare(ArmCPUReg.getArmCPUReg(0), new ArmImm(0), ArmCompare.CmpType.cmp),
+                    null, false);
+            addInstr(new ArmBranch(armBlock2, ArmTools.CondType.eq), null, false);
 
-        curArmBlock = armBlock1;
-        curArmFunction.addBlock(new IList.INode<>(curArmBlock));
-        // ARMv8-A: exit syscall number is 93, use x8 for syscall number
-        addInstr(new ArmLi(new ArmImm(93), ArmCPUReg.getArmCPUReg(8)), null, false);
-        addInstr(new ArmSyscall(new ArmImm(0)), null, false);
+            curArmBlock = armBlock1;
+            curArmFunction.addBlock(new IList.INode<>(curArmBlock));
+            // AArch64 标准：exit 系统调用号为 93，x8 作为 syscall 号寄存器
+            addInstr(new ArmLi(new ArmImm(93), ArmCPUReg.getArmCPUReg(8)), null, false);
+            addInstr(new ArmSyscall(new ArmImm(0)), null, false);
+            System.out.println("AArch64: exit syscall, x8=93, x0=返回值");
 
-        curArmBlock = armBlock2;
-        curArmFunction.addBlock(new IList.INode<>(curArmBlock));
-        addInstr(new ArmLi(stoR7, ArmCPUReg.getArmCPUReg(2)), null, false);
-        addInstr(new ArmSw(ArmCPUReg.getArmCPUReg(7),
-                ArmCPUReg.getArmCPUReg(2), new ArmImm(0)), null, false);
-        addInstr(new ArmLi(stoLr, ArmCPUReg.getArmCPUReg(2)), null, false);
-        addInstr(new ArmSw(ArmCPUReg.getArmRetReg(),
-                ArmCPUReg.getArmCPUReg(2), new ArmImm(0)), null, false);
+            curArmBlock = armBlock2;
+            curArmFunction.addBlock(new IList.INode<>(curArmBlock));
+            // 保存 R7 和 LR 到全局变量
+            addInstr(new ArmLi(stoR7, ArmCPUReg.getArmCPUReg(2)), null, false);
+            addInstr(new ArmSw(ArmCPUReg.getArmCPUReg(7),
+                    ArmCPUReg.getArmCPUReg(2), new ArmImm(0)), null, false);
+            addInstr(new ArmLi(stoLr, ArmCPUReg.getArmCPUReg(2)), null, false);
+            addInstr(new ArmSw(ArmCPUReg.getArmRetReg(),
+                    ArmCPUReg.getArmCPUReg(2), new ArmImm(0)), null, false);
 
-        addInstr(new ArmLi(new ArmImm(Config.parallelNum), ArmCPUReg.getArmCPUReg(7)), null, false);
+            // 初始化并行计数器
+            addInstr(new ArmLi(new ArmImm(Config.parallelNum), ArmCPUReg.getArmCPUReg(7)), null, false);
+            System.out.println("AArch64: 初始化并行计数器 x7=" + Config.parallelNum);
 
-        curArmBlock = armBlock3;
-        curArmFunction.addBlock(new IList.INode<>(curArmBlock));
-        addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(ArmCPUReg.getArmCPUReg(7),
-                new ArmImm(1))), ArmCPUReg.getArmCPUReg(7), ArmBinary.ArmBinaryType.sub), null, false);
-        addInstr(new ArmCompare(ArmCPUReg.getArmCPUReg(7), new ArmImm(0),
-                ArmCompare.CmpType.cmp), null, false);
-        addInstr(new ArmBranch(armBlock4, ArmTools.CondType.eq), null, false);
-        addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(4))),
-                ArmCPUReg.getArmCPUReg(0), ArmBinary.ArmBinaryType.sub), null, false);
-        addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(4))),
-                ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.sub), null, false);
-        addInstr(new ArmWait(), null, false);
-        addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(4))),
-                ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.add), null, false);
-        addInstr(new ArmJump(armBlock3, curArmBlock), null, false);
+            curArmBlock = armBlock3;
+            curArmFunction.addBlock(new IList.INode<>(curArmBlock));
+            // x7 = x7 - 1
+            addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(ArmCPUReg.getArmCPUReg(7),
+                    new ArmImm(1))), ArmCPUReg.getArmCPUReg(7), ArmBinary.ArmBinaryType.sub), null, false);
+            // 判断 x7 是否为 0
+            addInstr(new ArmCompare(ArmCPUReg.getArmCPUReg(7), new ArmImm(0),
+                    ArmCompare.CmpType.cmp), null, false);
+            addInstr(new ArmBranch(armBlock4, ArmTools.CondType.eq), null, false);
+            // x0 = SP - 4，栈指针下移
+            addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(4))),
+                    ArmCPUReg.getArmCPUReg(0), ArmBinary.ArmBinaryType.sub), null, false);
+            addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(4))),
+                    ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.sub), null, false);
+            // 等待其他线程
+            addInstr(new ArmWait(), null, false);
+            // SP 恢复
+            addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(4))),
+                    ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.add), null, false);
+            // 跳转回 armBlock3，继续等待
+            addInstr(new ArmJump(armBlock3, curArmBlock), null, false);
+            System.out.println("AArch64: 并行等待区块循环");
 
-        curArmBlock = armBlock4;
-        curArmFunction.addBlock(new IList.INode<>(curArmBlock));
-        addInstr(new ArmLi(stoR7, ArmCPUReg.getArmCPUReg(2)), null, false);
-        addInstr(new ArmLoad(ArmCPUReg.getArmCPUReg(2),
-                new ArmImm(0), ArmCPUReg.getArmCPUReg(7)), null, false);
-        addInstr(new ArmLi(stoLr, ArmCPUReg.getArmCPUReg(2)), null, false);
-        addInstr(new ArmLoad(ArmCPUReg.getArmCPUReg(2),
-                new ArmImm(0), ArmCPUReg.getArmRetReg()), null, false);
-        addInstr(new ArmRet(ArmCPUReg.getArmRetReg(), null), null, false);
-    }
+            curArmBlock = armBlock4;
+            curArmFunction.addBlock(new IList.INode<>(curArmBlock));
+            // 恢复 R7 和 LR
+            addInstr(new ArmLi(stoR7, ArmCPUReg.getArmCPUReg(2)), null, false);
+            addInstr(new ArmLoad(ArmCPUReg.getArmCPUReg(2),
+                    new ArmImm(0), ArmCPUReg.getArmCPUReg(7)), null, false);
+            addInstr(new ArmLi(stoLr, ArmCPUReg.getArmCPUReg(2)), null, false);
+            addInstr(new ArmLoad(ArmCPUReg.getArmCPUReg(2),
+                    new ArmImm(0), ArmCPUReg.getArmRetReg()), null, false);
+            addInstr(new ArmRet(ArmCPUReg.getArmRetReg(), null), null, false);
+            System.out.println("AArch64: 并行结束，恢复寄存器并返回");
+        }
 
-    public void parseGlobalVar(GlobalVar var) {
-        boolean flag = true;
-        if (var.isArray()) {
-            boolean isIntType = ((PointerType) var.getType()).getEleType() instanceof IntegerType;
-            int zeros = 0;
-            ArrayList<ArmGlobalValue> values = new ArrayList<>();
-            if (!var.isZeroInit()) {
-                for (Value value : var.getValues()) {
-                    if (isIntType) {
-                        assert value instanceof ConstInteger;
-                        if (((ConstInteger) value).getValue() == 0) {
-                            zeros += 4;
-                        } else {
-                            flag = false;
+    /**
+                 * 解析全局变量，生成 ARMv8-A (AArch64) 标准的汇编数据段或 bss 段
+                 * @param var IR 全局变量
+                 */
+                public void parseGlobalVar(GlobalVar var) {
+                    boolean flag = true;
+                    // 判断是否为数组类型
+                    if (var.isArray()) {
+                        // 判断数组元素类型是否为整数
+                        boolean isIntType = ((PointerType) var.getType()).getEleType() instanceof IntegerType;
+                        int zeros = 0;
+                        ArrayList<ArmGlobalValue> values = new ArrayList<>();
+                        // 非零初始化时，遍历所有元素
+                        if (!var.isZeroInit()) {
+                            for (Value value : var.getValues()) {
+                                if (isIntType) {
+                                    assert value instanceof ConstInteger;
+                                    if (((ConstInteger) value).getValue() == 0) {
+                                        zeros += 4;
+                                    } else {
+                                        flag = false;
+                                        if (zeros > 0) {
+                                            values.add(new ArmGlobalZero(zeros));
+                                            zeros = 0;
+                                        }
+                                        values.add(new ArmGlobalInt(((ConstInteger) value).getValue()));
+                                        System.out.println("AArch64: 数组元素为整数，值=" + ((ConstInteger) value).getValue());
+                                    }
+                                } else {
+                                    assert value instanceof ConstFloat || value instanceof ConstInteger;
+                                    float val = (value instanceof ConstInteger) ? ((ConstInteger) value).getValue() :
+                                            ((ConstFloat) value).getValue();
+                                    if (val == 0) {
+                                        zeros += 4;
+                                    } else {
+                                        flag = false;
+                                        if (zeros > 0) {
+                                            values.add(new ArmGlobalZero(zeros));
+                                            zeros = 0;
+                                        }
+                                        values.add(new ArmGlobalFloat(val));
+                                        System.out.println("AArch64: 数组元素为浮点数，值=" + val);
+                                    }
+                                }
+                            }
                             if (zeros > 0) {
                                 values.add(new ArmGlobalZero(zeros));
-                                zeros = 0;
+                                System.out.println("AArch64: 数组结尾补零，zeros=" + zeros);
                             }
-                            values.add(new ArmGlobalInt(((ConstInteger) value).getValue()));
                         }
-                    } else {
-                        assert value instanceof ConstFloat || value instanceof ConstInteger;
-                        float val = (value instanceof ConstInteger) ? ((ConstInteger) value).getValue() :
-                                ((ConstFloat) value).getValue();
-                        if (val == 0) {
-                            zeros += 4;
+                        // 构造 ARMv8-A 标准的全局变量
+                        ArmGlobalVariable globalVariable = new ArmGlobalVariable(removeLeadingAt(var.getName()),
+                                !var.isZeroInit(), 4 * var.getSize(), values);
+                        if (!flag) {
+                            armModule.addDataVar(globalVariable);
+                            System.out.println("AArch64: 添加到 .data 段，全局变量=" + var.getName());
                         } else {
-                            flag = false;
-                            if (zeros > 0) {
-                                values.add(new ArmGlobalZero(zeros));
-                                zeros = 0;
+                            armModule.addBssVar(globalVariable);
+                            System.out.println("AArch64: 添加到 .bss 段，全局变量=" + var.getName());
+                        }
+                        value2Label.put(var, globalVariable);
+                    } else {
+                        // 非数组类型，判断是否为整数类型
+                        boolean isIntType = !var.getType().isFloatTy();
+                        if (isIntType) {
+                            assert var.getValue() instanceof ConstInteger;
+                            ArmGlobalValue riscvGlobalInt = new ArmGlobalInt(((ConstInteger) var.getValue()).getValue());
+                            ArrayList<ArmGlobalValue> values = new ArrayList<>();
+                            values.add(riscvGlobalInt);
+                            ArmGlobalVariable globalVariable = new ArmGlobalVariable(removeLeadingAt(var.getName()),
+                                    true, 4, values);
+                            if (((ConstInteger) var.getValue()).getValue() == 0) {
+                                armModule.addBssVar(globalVariable);
+                                System.out.println("AArch64: 单值整数为零，添加到 .bss 段，全局变量=" + var.getName());
+                            } else {
+                                armModule.addDataVar(globalVariable);
+                                System.out.println("AArch64: 单值整数非零，添加到 .data 段，全局变量=" + var.getName());
                             }
-                            values.add(new ArmGlobalFloat(val));
+                            value2Label.put(var, globalVariable);
+                        } else {
+                            assert var.getValue() instanceof ConstFloat || var.getValue() instanceof ConstInteger;
+                            float val = (var.getValue() instanceof ConstInteger) ?
+                                    ((ConstInteger) var.getValue()).getValue() :
+                                    ((ConstFloat) var.getValue()).getValue();
+                            ArmGlobalValue armGlobalFloat = new ArmGlobalFloat(val);
+                            ArrayList<ArmGlobalValue> values = new ArrayList<>();
+                            values.add(armGlobalFloat);
+                            ArmGlobalVariable globalVariable = new ArmGlobalVariable(removeLeadingAt(var.getName()),
+                                    true, 4, values);
+                            armModule.addDataVar(globalVariable);
+                            System.out.println("AArch64: 单值浮点数，添加到 .data 段，全局变量=" + var.getName() + "，值=" + val);
+                            value2Label.put(var, globalVariable);
                         }
                     }
                 }
-                if (zeros > 0) {
-                    values.add(new ArmGlobalZero(zeros));
-                }
-            }
-            ArmGlobalVariable globalVariable = new ArmGlobalVariable(removeLeadingAt(var.getName()),
-                    !var.isZeroInit(), 4 * var.getSize(), values);
-            if (!flag) {
-                armModule.addDataVar(globalVariable);
-            } else {
-                armModule.addBssVar(globalVariable);
-            }
-            value2Label.put(var, globalVariable);
-        } else {
-            boolean isIntType = !var.getType().isFloatTy();
-            if (isIntType) {
-                assert var.getValue() instanceof ConstInteger;
-                ArmGlobalValue riscvGlobalInt = new ArmGlobalInt(((ConstInteger) var.getValue()).getValue());
-                ArrayList<ArmGlobalValue> values = new ArrayList<>();
-                values.add(riscvGlobalInt);
-                ArmGlobalVariable globalVariable = new ArmGlobalVariable(removeLeadingAt(var.getName()),
-                        true, 4, values);
-                if (((ConstInteger) var.getValue()).getValue() == 0) {
-                    armModule.addBssVar(globalVariable);
-                } else {
-                    armModule.addDataVar(globalVariable);
-                }
-                value2Label.put(var, globalVariable);
-            } else {
-                assert var.getValue() instanceof ConstFloat || var.getValue() instanceof ConstInteger;
-                float val = (var.getValue() instanceof ConstInteger) ?
-                        ((ConstInteger) var.getValue()).getValue() :
-                        ((ConstFloat) var.getValue()).getValue();
-                ArmGlobalValue armGlobalFloat = new ArmGlobalFloat(val);
-                ArrayList<ArmGlobalValue> values = new ArrayList<>();
-                values.add(armGlobalFloat);
-                ArmGlobalVariable globalVariable = new ArmGlobalVariable(removeLeadingAt(var.getName()),
-                        true, 4, values);
-                armModule.addDataVar(globalVariable);
-                value2Label.put(var, globalVariable);
-            }
-        }
-    }
 
     public void parseFunction(Function function) {
         curArmBlock = null;
         curArmFunction = (ArmFunction) value2Label.get(function);
-        System.out.println("Parsing function: " + function.getName() + ", BBs count: " + function.getBbs().getSize());
+        System.out.println("[parseFunction] 正在解析函数: " + function.getName() + "，基本块数量: " + function.getBbs().getSize());
         for (IList.INode<BasicBlock, Function> basicBlockNode : function.getBbs()) {
             BasicBlock bb = basicBlockNode.getValue();
             ArmBlock temp_block = new ArmBlock(curArmFunction.getName() +
@@ -333,24 +366,27 @@ public class ArmCodeGen {
             }
             BasicBlock bb = basicBlockNode.getValue();
             curArmBlock = (ArmBlock) value2Label.get(bb);
-            System.out.println("Processing basic block: " + bb.getName() + ", Instructions count: " + bb.getInsts().getSize());
+            System.out.println("[parseFunction] 处理基本块: " + bb.getName() + "，指令数量: " + bb.getInsts().getSize());
             if (!flag) {
-                // AArch64 function prologue: save frame pointer and link register
-                ArmStp prologue = new ArmStp(ArmCPUReg.getArmCPUReg(29), ArmCPUReg.getArmRetReg(), 
+                // AArch64 函数序言: 保存帧指针和链接寄存器
+                System.out.println("[parseFunction] 插入函数序言，保存 x29(帧指针) 和 x30(链接寄存器)");
+                ArmStp prologue = new ArmStp(ArmCPUReg.getArmCPUReg(29), ArmCPUReg.getArmRetReg(),
                                            ArmCPUReg.getArmSpReg(), new ArmImm(-16), true);
                 addInstr(prologue, null, false);
-                
-                // Set frame pointer
+
+                // 设置帧指针
+                System.out.println("[parseFunction] 设置帧指针 x29");
                 ArmMv setFP = new ArmMv(ArmCPUReg.getArmSpReg(), ArmCPUReg.getArmCPUReg(29));
                 addInstr(setFP, null, false);
-                
-                // ARM64: Allocate stack space at function start
+
+                // ARM64: 在函数开始分配栈空间
                 int stackSize = curArmFunction.getStackPosition();
                 if (stackSize > 0) {
-                    // Align stack size to 16 bytes
+                    // 16 字节对齐
                     stackSize = (stackSize + 15) & ~15;
+                    System.out.println("[parseFunction] 分配栈空间，大小: " + stackSize);
                     if (stackSize <= 4095) {
-                        // Can use immediate
+                        // 立即数方式
                         ArmBinary stackAlloc = new ArmBinary(
                             new ArrayList<>(Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmImm(stackSize))),
                             ArmCPUReg.getArmSpReg(),
@@ -358,7 +394,8 @@ public class ArmCodeGen {
                         );
                         addInstr(stackAlloc, null, false);
                     } else {
-                        // Use register for large stack allocation
+                        // 使用寄存器辅助分配大栈空间
+                        System.out.println("[parseFunction] 使用辅助寄存器分配大栈空间");
                         ArmReg assistReg = getNewIntReg();
                         ArmLi li = new ArmLi(new ArmImm(stackSize), assistReg);
                         addInstr(li, null, false);
@@ -370,12 +407,14 @@ public class ArmCodeGen {
                         addInstr(stackAlloc, null, false);
                     }
                 }
-                
-                //将所有函数中的用于参数的mv指令加入Block
+
+                // 将所有参数相关的 mv 指令加入 Block
+                System.out.println("[parseFunction] 插入参数传递相关的寄存器移动指令");
                 for (ArmMv armMv : curArmFunction.getMvs()) {
                     addInstr(armMv, null, false);
                 }
-                //处理返回地址寄存器保存 (链接寄存器x30 -> 虚拟寄存器)
+                // 保存返回地址寄存器 (x30 -> 虚拟寄存器)
+                System.out.println("[parseFunction] 保存返回地址寄存器 x30 到虚拟寄存器");
                 ArmMv mv = new ArmMv(curArmFunction.getRetReg(), ArmCPUReg.getArmRetReg());
                 addInstr(mv, null, false);
                 flag = true;
@@ -384,78 +423,110 @@ public class ArmCodeGen {
         }
         if (function.getBbs().getSize() != 0) {
             curArmFunction.addBlock(new IList.INode<>(curArmBlock));
-            System.out.println("Added final block to function: " + function.getName() + ", total blocks: " + curArmFunction.getBlocks().getSize());
+            System.out.println("[parseFunction] 已添加最后一个基本块到函数: " + function.getName() + "，总块数: " + curArmFunction.getBlocks().getSize());
         } else {
-            System.out.println("No basic blocks to add for function: " + function.getName());
+            System.out.println("[parseFunction] 函数无基本块可添加: " + function.getName());
         }
     }
 
+    // 解析一个 IR 基本块，将其中每条 IR 指令转换为 ARM 指令
+    // 注意：AArch64 要求每条指令都应符合 64 位 ARM 指令集规范
     public void parseBasicBlock(BasicBlock block) {
+        // 遍历基本块中的所有 IR 指令节点
+        System.out.println("[parseBasicBlock] 处理基本块: " + block.getName() + "，指令数量: " + block.getInsts().getSize());
         for (IList.INode<Instruction, BasicBlock> insNode : block.getInsts()) {
             Instruction ins = insNode.getValue();
+            // 转换为 ARM 指令，false 表示不是预定义指令
+            System.out.println("[parseBasicBlock] 转换 IR 指令: " + ins);
             parseInstruction(ins, false);
         }
     }
 
+    // 解析一条 IR 指令并转换为 ARM 指令
     public void parseInstruction(Instruction ins, boolean predefine) {
         if (ins instanceof AllocInst) {
+            System.out.println("[parseInstruction] 分配内存指令: " + ins);
             parseAlloc((AllocInst) ins, predefine);
         } else if (ins instanceof BinaryInst) {
+            System.out.println("[parseInstruction] 二元运算指令: " + ins);
             parseBinaryInst((BinaryInst) ins, predefine);
         } else if (ins instanceof BrInst) {
+            System.out.println("[parseInstruction] 分支指令: " + ins);
             parseBrInst((BrInst) ins, predefine);
         } else if (ins instanceof CallInst) {
+            System.out.println("[parseInstruction] 函数调用指令: " + ins);
             parseCallInst((CallInst) ins, predefine);
         } else if (ins instanceof ConversionInst) {
+            System.out.println("[parseInstruction] 类型转换指令: " + ins);
             parseConversionInst((ConversionInst) ins, predefine);
         } else if (ins instanceof LoadInst) {
+            System.out.println("[parseInstruction] 加载指令: " + ins);
             parseLoad((LoadInst) ins, predefine);
         } else if (ins instanceof Move) {
+            System.out.println("[parseInstruction] 移动指令: " + ins);
             parseMove((Move) ins, predefine);
         } else if (ins instanceof PtrInst) {
+            System.out.println("[parseInstruction] 指针操作指令: " + ins);
             parsePtrInst((PtrInst) ins, predefine);
         } else if (ins instanceof PtrSubInst) {
+            System.out.println("[parseInstruction] 指针减法指令: " + ins);
             parsePtrSubInst((PtrSubInst) ins, predefine);
         } else if (ins instanceof RetInst) {
+            System.out.println("[parseInstruction] 返回指令: " + ins);
             parseRetInst((RetInst) ins, predefine);
         } else if (ins instanceof StoreInst) {
+            System.out.println("[parseInstruction] 存储指令: " + ins);
             parseStore((StoreInst) ins, predefine);
         } else {
-            System.err.println("ERROR");
+            System.err.println("[parseInstruction] 未知指令类型: " + ins);
         }
     }
 
     public void parseBinaryInst(BinaryInst binaryInst, boolean predefine) {
+        // 处理 IR 二元运算指令，转换为 ARM 指令
         if (binaryInst.getOp() == OP.Add) {
+            System.out.println("[parseBinaryInst] 二元运算: 加法 " + binaryInst);
             parseAdd(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.Sub) {
+            System.out.println("[parseBinaryInst] 二元运算: 减法 " + binaryInst);
             parseSub(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.Mul) {
+            System.out.println("[parseBinaryInst] 二元运算: 乘法 " + binaryInst);
             parseMul(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.Div) {
+            System.out.println("[parseBinaryInst] 二元运算: 除法 " + binaryInst);
             parseDiv(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.Mod) {
+            System.out.println("[parseBinaryInst] 二元运算: 取模 " + binaryInst);
             parseMod(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.And) {
+            System.out.println("[parseBinaryInst] 二元运算: 按位与 " + binaryInst);
             parseAnd(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.Or) {
+            System.out.println("[parseBinaryInst] 二元运算: 按位或 " + binaryInst);
             parseOr(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.Xor) {
+            System.out.println("[parseBinaryInst] 二元运算: 按位异或 " + binaryInst);
             parseXor(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.Fsub || binaryInst.getOp() == OP.Fadd
                 || binaryInst.getOp() == OP.Fmul || binaryInst.getOp() == OP.Fdiv) {
+            System.out.println("[parseBinaryInst] 浮点二元运算: " + binaryInst.getOp() + " " + binaryInst);
             parseFbin(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.Fmod) {
+            System.out.println("[parseBinaryInst] 浮点取模暂不支持 " + binaryInst);
             assert false;
         } else if (binaryInst.getOp() == OP.Lt || binaryInst.getOp() == OP.Le
                 || binaryInst.getOp() == OP.Gt || binaryInst.getOp() == OP.Ge
                 || binaryInst.getOp() == OP.Eq || binaryInst.getOp() == OP.Ne) {
+            System.out.println("[parseBinaryInst] 整型比较运算: " + binaryInst.getOp() + " " + binaryInst);
             parseIcmp(binaryInst, predefine);
         } else if (binaryInst.getOp() == OP.FLt || binaryInst.getOp() == OP.FLe
                 || binaryInst.getOp() == OP.FGt || binaryInst.getOp() == OP.FGe
                 || binaryInst.getOp() == OP.FEq || binaryInst.getOp() == OP.FNe) {
+            System.out.println("[parseBinaryInst] 浮点比较运算: " + binaryInst.getOp() + " " + binaryInst);
             parseFcmp(binaryInst, predefine);
         } else {
+            System.err.println("[parseBinaryInst] 未知二元运算类型: " + binaryInst.getOp() + " " + binaryInst);
             assert false;
         }
     }
@@ -467,187 +538,278 @@ public class ArmCodeGen {
         ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
         predefines.put(binaryInst, insList);
         ArmVirReg resReg = getResReg(binaryInst, ArmVirReg.RegType.intType);
-        if(binaryInst.I64) {
-            /***
-             * movw	r2,	#1
-             * movt	r2,	#15232
-             * smull r0, r1, r0, r1
-             * asr r3, r2, #31
-             * bl __aeabi_ldivmod
-             * mov r0, r2
-             */
-            assert binaryInst.getLeftVal() instanceof BinaryInst
-                    && ((BinaryInst) binaryInst.getLeftVal()).I64;
-            ArmReg reg1 = getRegOnlyFromValue(((BinaryInst) binaryInst.getLeftVal()).
-                    getLeftVal(), insList, predefine);
-            ArmReg reg2 = getRegOnlyFromValue(((BinaryInst)
-                    binaryInst.getLeftVal()).getRightVal(), insList, predefine);
-            addInstr(new ArmSmull(ArmCPUReg.getArmCPUReg(0),
-                    reg1, reg2), insList, predefine);
-            assert binaryInst.getRightVal() instanceof ConstInteger;
-            addInstr(new ArmLi(new ArmImm(((ConstInteger)binaryInst.getRightVal()).getValue()),
-                    ArmCPUReg.getArmCPUReg(2)), insList, predefine);
-            addInstr(new ArmBinary(
-                    new ArrayList<>(Arrays.asList(ArmCPUReg.getArmCPUReg(2), new ArmImm(31))),
-                    ArmCPUReg.getArmCPUReg(3), ArmBinary.ArmBinaryType.asr), insList, predefine);
-            ArmBinary ins2 = new ArmBinary(new ArrayList<>(
-                    Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmStackFixer(curArmFunction, 0))),
-                    ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.sub);
-            addInstr(ins2, insList, predefine);
 
-            ArmCall call = new ArmCall(ldivmod);
-            call.addUsedReg(ArmCPUReg.getArmCPUReg(0));
-            call.addUsedReg(ArmCPUReg.getArmCPUReg(1));
-            call.addUsedReg(ArmCPUReg.getArmCPUReg(2));
-            call.addUsedReg(ArmCPUReg.getArmCPUReg(3));
-            addInstr(call, insList, predefine);
-            ArmBinary ins3 = new ArmBinary(new ArrayList<>(
-                    Arrays.asList(ArmCPUReg.getArmSpReg(), new ArmStackFixer(curArmFunction, 0))),
-                    ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.add);
-            addInstr(ins3, insList, predefine);
-            addInstr(new ArmMv(ArmCPUReg.getArmCPUReg(2), resReg), insList, predefine);
+        // 处理64位整数取模操作
+        if(binaryInst.I64) {
+            // 在AArch64中，使用内置的除法指令并计算余数
+            System.out.println("[parseMod] 处理64位整数取模操作");
+
+            // 获取被除数和除数
+            ArmReg dividend = getRegOnlyFromValue(binaryInst.getLeftVal(), insList, predefine);
+            ArmReg divisor = getRegOnlyFromValue(binaryInst.getRightVal(), insList, predefine);
+
+            // 临时寄存器用于存储商
+            ArmReg quotientReg = getNewIntReg();
+
+            // 执行有符号除法
+            addInstr(new ArmBinary(
+                    new ArrayList<>(Arrays.asList(dividend, divisor)),
+                    quotientReg,
+                    ArmBinary.ArmBinaryType.sdiv),
+                    insList, predefine);
+
+            // 计算余数：remainder = dividend - (quotient * divisor)
+            // 先计算 quotient * divisor
+            ArmReg tempReg = getNewIntReg();
+            addInstr(new ArmBinary(
+                    new ArrayList<>(Arrays.asList(quotientReg, divisor)),
+                    tempReg,
+                    ArmBinary.ArmBinaryType.mul),
+                    insList, predefine);
+
+            // 然后计算 dividend - (quotient * divisor)
+            addInstr(new ArmBinary(
+                    new ArrayList<>(Arrays.asList(dividend, tempReg)),
+                    resReg,
+                    ArmBinary.ArmBinaryType.sub),
+                    insList, predefine);
+
             value2Reg.put(binaryInst, resReg);
             return;
         }
+
+        // 处理32位整数取模操作
         ArmOperand leftOperand = getRegOnlyFromValue(binaryInst.getLeftVal(), insList, predefine);
-        ArmOperand rightOperand;
+
+        // 优化：如果除数是2的幂，可以使用位操作优化
         if (binaryInst.getRightVal() instanceof ConstInteger) {
             int val = ((ConstInteger) binaryInst.getRightVal()).getValue();
             int temp = Math.abs(val);
-            if ((temp & (temp - 1)) == 0) {
-                int shift = 0;
-                while (temp >= 2) {
-                    shift++;
-                    temp /= 2;
-                }
-                ArmReg reg = getNewIntReg();
+
+            if ((temp & (temp - 1)) == 0 && temp > 0) {  // 是否为2的幂
+                System.out.println("[parseMod] 使用2的幂优化取模: " + temp);
+
+                // 对于2的幂取模，可以使用 x & (power-1) 计算
+                // 但需要处理负数情况
+                int mask = temp - 1;
+
+                // 获取结果的符号（与被除数相同）
+                ArmReg signReg = getNewIntReg();
                 addInstr(new ArmBinary(
                         new ArrayList<>(Arrays.asList(leftOperand, new ArmImm(31))),
-                        reg, ArmBinary.ArmBinaryType.asr), insList, predefine);
+                        signReg, ArmBinary.ArmBinaryType.asr),
+                        insList, predefine);
+
+                // 计算 x & (power-1)
+                ArmReg maskReg = getNewIntReg();
+                addInstr(new ArmLi(new ArmImm(mask), maskReg), insList, predefine);
+
+                ArmReg andReg = getNewIntReg();
                 addInstr(new ArmBinary(
-                        new ArrayList<>(Arrays.asList(reg, new ArmImm(32 - shift))),
-                        reg, ArmBinary.ArmBinaryType.lsr), insList, predefine);
+                        new ArrayList<>(Arrays.asList(leftOperand, maskReg)),
+                        andReg, ArmBinary.ArmBinaryType.and),
+                        insList, predefine);
+
+                // 如果被除数为负数，需要修正结果
+                // 负数需要额外处理：如果结果不为0，需要补充 divisor
+                ArmReg tempReg = getNewIntReg();
+
+                // 检查结果是否为0
+                addInstr(new ArmCompare(andReg, new ArmImm(0), ArmCompare.CmpType.cmp),
+                        insList, predefine);
+
+                // 生成条件移动：如果结果不为0且原数为负数，需要从除数中减去结果
+                addInstr(new ArmLi(new ArmImm(0), tempReg), insList, predefine);
+                addInstr(new ArmLi(new ArmImm(temp), resReg), insList, predefine);
+
+                // 条件选择：如果andReg为0或signReg为0（非负数），则选择andReg；否则选择temp-andReg
+                addInstr(new ArmCsel(andReg, tempReg, andReg, ArmTools.CondType.eq, ArmCsel.CselType.csel),
+                        insList, predefine);
+
                 addInstr(new ArmBinary(
-                        new ArrayList<>(Arrays.asList(leftOperand, reg)),
-                        reg, ArmBinary.ArmBinaryType.add), insList, predefine);
-                addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(reg, new ArmImm(shift))),
-                        reg, ArmBinary.ArmBinaryType.lsr), insList, predefine);
-                addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(reg, new ArmImm(shift))),
-                        reg, ArmBinary.ArmBinaryType.lsl), insList, predefine);
-                addInstr(new ArmBinary(new ArrayList<>(Arrays.asList(leftOperand, reg)),
-                        resReg, ArmBinary.ArmBinaryType.sub), insList, predefine);
+                        new ArrayList<>(Arrays.asList(resReg, andReg)),
+                        resReg, ArmBinary.ArmBinaryType.sub),
+                        insList, predefine);
+
+                // 基于符号的条件选择最终结果
+                addInstr(new ArmCompare(signReg, new ArmImm(0), ArmCompare.CmpType.cmp),
+                        insList, predefine);
+                addInstr(new ArmCsel(andReg, resReg, resReg, ArmTools.CondType.lt, ArmCsel.CselType.csel),
+                        insList, predefine);
+
                 value2Reg.put(binaryInst, resReg);
                 return;
             }
         }
-        rightOperand = getRegOnlyFromValue(binaryInst.getRightVal(), insList, predefine);
-        ArmBinary sdiv = new ArmBinary(new ArrayList<>(Arrays.asList(leftOperand, rightOperand)), resReg, ArmBinary.ArmBinaryType.sdiv);
-        addInstr(sdiv, insList, predefine);
-        ArmReg mulReg = getNewIntReg();
-        ArmBinary mul = new ArmBinary(new ArrayList<>(Arrays.asList(resReg, rightOperand)), mulReg, ArmBinary.ArmBinaryType.mul);
-        addInstr(mul, insList, predefine);
-        ArmBinary sub = new ArmBinary(new ArrayList<>(Arrays.asList(leftOperand, mulReg)), resReg, ArmBinary.ArmBinaryType.sub);
+
+        // 一般情况：使用标准除法和乘法计算余数
+        ArmOperand rightOperand = getRegOnlyFromValue(binaryInst.getRightVal(), insList, predefine);
+
+        // 计算商：dividend / divisor
+        ArmReg quotientReg = getNewIntReg();
+        addInstr(new ArmBinary(
+                new ArrayList<>(Arrays.asList(leftOperand, rightOperand)),
+                quotientReg,
+                ArmBinary.ArmBinaryType.sdiv),
+                insList, predefine);
+
+        // 计算商×除数：(dividend / divisor) * divisor
+        ArmReg productReg = getNewIntReg();
+        addInstr(new ArmBinary(
+                new ArrayList<>(Arrays.asList(quotientReg, rightOperand)),
+                productReg,
+                ArmBinary.ArmBinaryType.mul),
+                insList, predefine);
+
+        // 计算余数：dividend - ((dividend / divisor) * divisor)
+        addInstr(new ArmBinary(
+                new ArrayList<>(Arrays.asList(leftOperand, productReg)),
+                resReg,
+                ArmBinary.ArmBinaryType.sub),
+                insList, predefine);
+
         value2Reg.put(binaryInst, resReg);
-        addInstr(sub, insList, predefine);
     }
 
+    // 判断是否为 AArch64 标准支持的整型比较操作符
+    // AArch64 支持的整型比较包括：==, !=, >=, >, <=, <
     public boolean isIntCmpType(OP op) {
-        return op == OP.Eq || op == OP.Ne || op == OP.Ge || op == OP.Gt
+        boolean result = op == OP.Eq || op == OP.Ne || op == OP.Ge || op == OP.Gt
                 || op == OP.Le || op == OP.Lt;
+        System.out.println("[isIntCmpType] 检查操作符 " + op + " 是否为 AArch64 整型比较: " + result);
+        return result;
     }
 
+    // 检查是否为 AArch64 标准支持的浮点比较操作符
+    // AArch64 支持的浮点比较包括：==, !=, >=, >, <=, <
     public boolean isFloatCmpType(OP op) {
-        return op == OP.FEq || op == OP.FNe || op == OP.FGe || op == OP.FGt
+        boolean result = op == OP.FEq || op == OP.FNe || op == OP.FGe || op == OP.FGt
                 || op == OP.FLe || op == OP.FLt;
+        System.out.println("[isFloatCmpType] 检查操作符 " + op + " 是否为 AArch64 浮点比较: " + result);
+        return result;
     }
 
     public void parseBrInst(BrInst brInst, boolean predefine) {
-        if (preProcess(brInst, predefine)) {
-            return;
-        }
-        ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
-        predefines.put(brInst, insList);
-        assert value2Label.containsKey(brInst.getParentbb())
-                && value2Label.get(brInst.getParentbb()) instanceof ArmBlock;
-        ArmBlock block = (ArmBlock) value2Label.get(brInst.getParentbb());
-        if (brInst.isJump() || brInst.getTrueBlock() == brInst.getFalseBlock()) {
-            assert value2Label.containsKey(brInst.getJumpBlock());
-            addInstr(new ArmJump(value2Label.get(brInst.getJumpBlock()), block), insList, predefine);
-        } else {
-            if (!value2Reg.containsKey(brInst.getJudVal())) {
-                assert brInst.getJudVal() instanceof Instruction;
-                parseInstruction((Instruction) brInst.getJudVal(), true);
+            // 检查是否已预处理（预定义指令），AArch64标准分支指令处理入口
+            if (preProcess(brInst, predefine)) {
+                return;
             }
-            BasicBlock parentBlock = brInst.getParentbb();
-            Function func = parentBlock.getParentFunc();
-            BasicBlock nextBlock = null;
-            for (IList.INode<BasicBlock, Function> bb : func.getBbs()) {
-                if (bb.getValue() == parentBlock && bb.getNext() != null) {
-                    nextBlock = bb.getNext().getValue();
+            ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
+            predefines.put(brInst, insList);
+            assert value2Label.containsKey(brInst.getParentbb())
+                    && value2Label.get(brInst.getParentbb()) instanceof ArmBlock;
+            ArmBlock block = (ArmBlock) value2Label.get(brInst.getParentbb());
+
+            // AArch64: 跳转指令或真假分支相同，直接生成跳转
+            if (brInst.isJump() || brInst.getTrueBlock() == brInst.getFalseBlock()) {
+                assert value2Label.containsKey(brInst.getJumpBlock());
+                System.out.println("[parseBrInst] 生成无条件跳转指令到块: " + brInst.getJumpBlock().getName());
+                addInstr(new ArmJump(value2Label.get(brInst.getJumpBlock()), block), insList, predefine);
+            } else {
+                // 处理条件分支，先确保判断值已生成
+                if (!value2Reg.containsKey(brInst.getJudVal())) {
+                    assert brInst.getJudVal() instanceof Instruction;
+                    System.out.println("[parseBrInst] 生成条件判断值: " + brInst.getJudVal());
+                    parseInstruction((Instruction) brInst.getJudVal(), true);
+                }
+                BasicBlock parentBlock = brInst.getParentbb();
+                Function func = parentBlock.getParentFunc();
+                BasicBlock nextBlock = null;
+                for (IList.INode<BasicBlock, Function> bb : func.getBbs()) {
+                    if (bb.getValue() == parentBlock && bb.getNext() != null) {
+                        nextBlock = bb.getNext().getValue();
+                    }
+                }
+                // AArch64: 使用cmp指令比较判断值与1
+                System.out.println("[parseBrInst] 生成AArch64条件比较指令 cmp 判断值与1");
+                addInstr(new ArmCompare(value2Reg.get(brInst.getJudVal()), new ArmImm(1),
+                        ArmCompare.CmpType.cmp), insList, predefine);
+
+                // 生成条件分支指令，ne为假分支，eq为真分支
+                if (nextBlock != brInst.getFalseBlock()) {
+                    System.out.println("[parseBrInst] 生成条件分支(ne)跳转到块: " + brInst.getFalseBlock().getName());
+                    ArmBranch br = new ArmBranch((ArmBlock) value2Label.get(brInst.getFalseBlock()),
+                            ArmTools.CondType.ne);
+                    addInstr(br, insList, predefine);
+                    br.setPredSucc(curArmBlock);
+                }
+                if (nextBlock != brInst.getTrueBlock()) {
+                    System.out.println("[parseBrInst] 生成条件分支(eq)跳转到块: " + brInst.getTrueBlock().getName());
+                    ArmBranch br = new ArmBranch((ArmBlock) value2Label.get(brInst.getTrueBlock()),
+                            ArmTools.CondType.eq);
+                    addInstr(br, insList, predefine);
+                    br.setPredSucc(curArmBlock);
                 }
             }
-            addInstr(new ArmCompare(value2Reg.get(brInst.getJudVal()), new ArmImm(1),
-                    ArmCompare.CmpType.cmp), insList, predefine);
-            if (nextBlock != brInst.getFalseBlock()) {
-                ArmBranch br = new ArmBranch((ArmBlock) value2Label.get(brInst.getFalseBlock()),
-                        ArmTools.CondType.ne);
-                addInstr(br, insList, predefine);
-                br.setPredSucc(curArmBlock);
-            }
-            if (nextBlock != brInst.getTrueBlock()) {
-                ArmBranch br = new ArmBranch((ArmBlock) value2Label.get(brInst.getTrueBlock()),
-                        ArmTools.CondType.eq);
-                addInstr(br, insList, predefine);
-                br.setPredSucc(curArmBlock);
-            }
         }
-    }
 
-    public void parseIcmp(BinaryInst binaryInst, boolean predefine) {
-        if (preProcess(binaryInst, predefine)) {
-            return;
-        }
-        ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
-        predefines.put(binaryInst, insList);
-        ArmOperand leftOp = getRegOrImmFromValue(binaryInst.getOperands().get(0), insList, predefine);
-        ArmOperand rightOp = getRegOrImmFromValue(binaryInst.getOperands().get(1), insList, predefine);
-        ArmTools.CondType type = null;
-        switch (binaryInst.getOp()) {
-            case Eq -> type = ArmTools.CondType.eq;
-            case Ne -> type = ArmTools.CondType.ne;
-            case Ge -> type = ArmTools.CondType.ge;
-            case Gt -> type = ArmTools.CondType.gt;
-            case Le -> type = ArmTools.CondType.le;
-            case Lt -> type = ArmTools.CondType.lt;
-            default -> {
-                assert false;
+    /**
+         * 解析整型比较指令，生成符合 AArch64 标准的比较和条件赋值指令
+         * 支持 ==, !=, >=, >, <=, < 操作
+         */
+        public void parseIcmp(BinaryInst binaryInst, boolean predefine) {
+            // 检查是否已预处理（预定义指令）
+            if (preProcess(binaryInst, predefine)) {
+                System.out.println("[parseIcmp] 已预处理，跳过: " + binaryInst);
+                return;
             }
-        }
-        if (leftOp instanceof ArmImm) {
-            ArmOperand op = leftOp;
-            leftOp = rightOp;
-            rightOp = op;
-            type = getOnlyRevBigSmallType(type);
-        }
-        if (rightOp instanceof ArmImm) {
-            if (ArmTools.isArmImmCanBeEncoded(((ArmImm) rightOp).getIntValue())) {
-                addInstr(new ArmCompare(leftOp, rightOp, ArmCompare.CmpType.cmp), insList, predefine);
+            ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
+            predefines.put(binaryInst, insList);
+
+            // 获取左右操作数，可能为寄存器或立即数
+            ArmOperand leftOp = getRegOrImmFromValue(binaryInst.getOperands().get(0), insList, predefine);
+            ArmOperand rightOp = getRegOrImmFromValue(binaryInst.getOperands().get(1), insList, predefine);
+
+            // 匹配 AArch64 支持的比较类型
+            ArmTools.CondType type = null;
+            switch (binaryInst.getOp()) {
+                case Eq -> type = ArmTools.CondType.eq;
+                case Ne -> type = ArmTools.CondType.ne;
+                case Ge -> type = ArmTools.CondType.ge;
+                case Gt -> type = ArmTools.CondType.gt;
+                case Le -> type = ArmTools.CondType.le;
+                case Lt -> type = ArmTools.CondType.lt;
+                default -> {
+                    System.err.println("[parseIcmp] 不支持的比较操作类型: " + binaryInst.getOp());
+                    assert false;
+                }
+            }
+
+            // AArch64 标准：如果左操作数为立即数，交换左右并反转比较类型
+            if (leftOp instanceof ArmImm) {
+                ArmOperand op = leftOp;
+                leftOp = rightOp;
+                rightOp = op;
+                type = getOnlyRevBigSmallType(type);
+                System.out.println("[parseIcmp] 左操作数为立即数，交换并反转比较类型: " + type);
+            }
+
+            // 生成 cmp 指令，AArch64 要求立即数可编码，否则先加载到寄存器
+            if (rightOp instanceof ArmImm) {
+                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) rightOp).getIntValue())) {
+                    addInstr(new ArmCompare(leftOp, rightOp, ArmCompare.CmpType.cmp), insList, predefine);
+                    System.out.println("[parseIcmp] 生成 cmp 指令: " + leftOp + " 与 " + rightOp);
+                } else {
+                    ArmReg reg = getNewIntReg();
+                    addInstr(new ArmLi(rightOp, reg), insList, predefine);
+                    addInstr(new ArmCompare(leftOp, reg, ArmCompare.CmpType.cmp), insList, predefine);
+                    System.out.println("[parseIcmp] 立即数不可编码，先加载到寄存器: " + reg);
+                }
             } else {
-                ArmReg reg = getNewIntReg();
-                addInstr(new ArmLi(rightOp, reg), insList, predefine);
-                addInstr(new ArmCompare(leftOp, reg, ArmCompare.CmpType.cmp), insList, predefine);
+                addInstr(new ArmCompare(leftOp, rightOp, ArmCompare.CmpType.cmp), insList, predefine);
+                System.out.println("[parseIcmp] 生成 cmp 指令: " + leftOp + " 与 " + rightOp);
             }
-        } else {
-            addInstr(new ArmCompare(leftOp, rightOp, ArmCompare.CmpType.cmp), insList, predefine);
+
+            // 条件赋值，AArch64 标准：先赋0（反条件），再赋1（条件成立）
+            ArmReg reg = getNewIntReg();
+            assert type != null;
+            addInstr(new ArmLi(new ArmImm(0), reg, ArmTools.getRevCondType(type)), insList, predefine);
+            addInstr(new ArmLi(new ArmImm(1), reg, type), insList, predefine);
+            System.out.println("[parseIcmp] 条件赋值: " + reg + "，条件类型: " + type);
+
+            // 保存结果寄存器
+            value2Reg.put(binaryInst, reg);
         }
-        ArmReg reg = getNewIntReg();
-        assert type != null;
-        addInstr(new ArmLi(new ArmImm(0), reg, ArmTools.getRevCondType(type))
-                , insList, predefine);
-        addInstr(new ArmLi(new ArmImm(1), reg, type)
-                , insList, predefine);
-        value2Reg.put(binaryInst, reg);
-    }
 
     public void parseFcmp(BinaryInst binaryInst, boolean predefine) {
         if (preProcess(binaryInst, predefine)) {
@@ -1040,28 +1202,42 @@ public class ArmCodeGen {
         addInstr(mul, insList, predefine);
     }
 
+    /**
+     * 解析整型除法指令，生成符合 AArch64 标准的除法指令
+     * 支持常数除法优化，包括除以1、-1、2的幂以及更复杂的常数优化
+     * 其余情况使用标准 sdiv 指令
+     */
     public void parseDiv(BinaryInst binaryInst, boolean predefine) {
+        // 检查是否已预处理（预定义指令）
         if (preProcess(binaryInst, predefine)) {
+            System.out.println("[parseDiv] 已预处理，跳过: " + binaryInst);
             return;
         }
         ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
         predefines.put(binaryInst, insList);
-        //TODO:Ready to be optimized
+        // 获取结果寄存器
         ArmVirReg resReg = getResReg(binaryInst, ArmVirReg.RegType.intType);
+        // 获取被除数寄存器
         ArmReg leftOperand = getRegOnlyFromValue(binaryInst.getLeftVal(), insList, predefine);
         ArmOperand rightOperand;
+        // 常数除法优化
         if (binaryInst.getRightVal() instanceof ConstInteger) {
             int val = ((ConstInteger) binaryInst.getRightVal()).getValue();
             if (val == 1) {
+                // 除以1，直接赋值
+                System.out.println("[parseDiv] 除数为1，直接赋值: " + leftOperand);
                 addInstr(new ArmMv(leftOperand, resReg), insList, predefine);
                 value2Reg.put(binaryInst, resReg);
                 return;
             } else if (val == -1) {
+                // 除以-1，取反
+                System.out.println("[parseDiv] 除数为-1，取反: " + leftOperand);
                 addInstr(new ArmRev(leftOperand, resReg), insList, predefine);
                 value2Reg.put(binaryInst, resReg);
                 return;
             } else if ((Math.abs(val) & (Math.abs(val) - 1)) == 0) {
-                //判断是否为2的倍数
+                // 除以2的幂，使用算术右移优化
+                System.out.println("[parseDiv] 除数为2的幂，使用算术右移优化: " + val);
                 boolean flag = val < 0;
                 int temp = Math.abs(val);
                 int shift = 0;
@@ -1089,6 +1265,8 @@ public class ArmCodeGen {
                 value2Reg.put(binaryInst, resReg);
                 return;
             } else if (Config.divOptOpen) {
+                // 更复杂的常数除法优化（乘法+移位法）
+                System.out.println("[parseDiv] 启用常数除法优化: " + val);
                 boolean flag = ((ConstInteger) binaryInst.getRightVal()).getValue() < 0;
                 int divNum = ((ConstInteger) binaryInst.getRightVal()).getValue();
                 long nc = ((long) 1 << 31) - (((long) 1 << 31) % divNum) - 1;
@@ -1122,6 +1300,8 @@ public class ArmCodeGen {
                 return;
             }
         }
+        // 其余情况，使用标准 sdiv 指令
+        System.out.println("[parseDiv] 使用标准 sdiv 指令: " + leftOperand + " / " + binaryInst.getRightVal());
         rightOperand = getRegOnlyFromValue(binaryInst.getRightVal(), insList, predefine);
         ArmBinary div = new ArmBinary(new ArrayList<>(
                 Arrays.asList(leftOperand, rightOperand)), resReg, ArmBinary.ArmBinaryType.sdiv);
@@ -1212,33 +1392,42 @@ public class ArmCodeGen {
     }
 
     public void parseStore(StoreInst storeInst, boolean predefine) {
+        // 检查是否已预处理（预定义指令），AArch64标准存储指令处理入口
         if (preProcess(storeInst, predefine)) {
+            System.out.println("[parseStore] 已预处理，跳过: " + storeInst);
             return;
         }
         ArrayList<ArmInstruction> insList = predefine ? new ArrayList<>() : null;
         predefines.put(storeInst, insList);
         ArmReg stoReg = getRegOnlyFromValue(storeInst.getValue(), insList, predefine);
+
+        // AArch64: 指针类型存储（包括指针和指针偏移）
         if (storeInst.getPointer() instanceof PtrInst || storeInst.getPointer() instanceof PtrSubInst) {
             if (!(value2Reg.containsKey(storeInst.getPointer())
                     || ptr2Offset.containsKey(storeInst.getPointer()))) {
                 if (storeInst.getPointer() instanceof PtrInst) {
+                    System.out.println("[parseStore] 解析PtrInst指针: " + storeInst.getPointer());
                     parsePtrInst((PtrInst) storeInst.getPointer(), true);
                 } else {
+                    System.out.println("[parseStore] 解析PtrSubInst指针: " + storeInst.getPointer());
                     parsePtrSubInst((PtrSubInst) storeInst.getPointer(), true);
                 }
             }
             if (ptr2Offset.containsKey(storeInst.getPointer())) {
                 int offset = ptr2Offset.get(storeInst.getPointer());
-                // Use ARM64-compliant range checks
+                // ARM64: 合法立即数偏移存储
                 if (ArmTools.isLegalLoadStoreImm(offset) &&
                         !((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
+                    System.out.println("[parseStore] 使用ArmSw存储整型，偏移: " + offset);
                     ArmSw armSw = new ArmSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                     addInstr(armSw, insList, predefine);
                 } else if (ArmTools.isLegalVLoadStoreImm(offset)
                         && ((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
+                    System.out.println("[parseStore] 使用ArmFSw存储浮点型，偏移: " + offset);
                     ArmFSw fsw = new ArmFSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                     addInstr(fsw, insList, predefine);
                 } else {
+                    System.out.println("[parseStore] 偏移超出范围，先加载到寄存器: " + offset);
                     ArmReg assistReg = getNewIntReg();
                     addInstr(new ArmLi(new ArmImm(offset), assistReg), insList, predefine);
                     if (((PointerType) storeInst.getPointer().getType()).getEleType().isIntegerTy()) {
@@ -1250,41 +1439,54 @@ public class ArmCodeGen {
                     }
                 }
             } else {
+                // ARM64: 无偏移，直接存储
                 if (((PointerType) storeInst.getPointer().getType()).getEleType().isIntegerTy()) {
+                    System.out.println("[parseStore] 无偏移，存储整型到指针: " + storeInst.getPointer());
                     ArmSw sw = new ArmSw(stoReg, value2Reg.get(storeInst.getPointer()), new ArmImm(0));
                     addInstr(sw, insList, predefine);
                 } else {
+                    System.out.println("[parseStore] 无偏移，存储浮点型到指针: " + storeInst.getPointer());
                     ArmFSw fsw = new ArmFSw(stoReg, value2Reg.get(storeInst.getPointer()), new ArmImm(0));
                     addInstr(fsw, insList, predefine);
                 }
             }
-        } else if (storeInst.getPointer() instanceof GlobalVar) {
+        }
+        // AArch64: 全局变量存储
+        else if (storeInst.getPointer() instanceof GlobalVar) {
             assert value2Label.containsKey(storeInst.getPointer());
             ArmGlobalVariable var = (ArmGlobalVariable) value2Label.get(storeInst.getPointer());
             ArmReg assistReg = getNewIntReg();
             ArmLi li = new ArmLi(var, assistReg);
             addInstr(li, insList, predefine);
             if (((PointerType) storeInst.getPointer().getType()).getEleType().isIntegerTy()) {
+                System.out.println("[parseStore] 存储整型到全局变量: " + var);
                 ArmSw sw = new ArmSw(stoReg, assistReg, new ArmImm(0));
                 addInstr(sw, insList, predefine);
             } else {
+                System.out.println("[parseStore] 存储浮点型到全局变量: " + var);
                 ArmFSw fsw = new ArmFSw(stoReg, assistReg, new ArmImm(0));
                 addInstr(fsw, insList, predefine);
             }
-        } else if (storeInst.getPointer() instanceof AllocInst) {
+        }
+        // AArch64: 局部变量分配存储
+        else if (storeInst.getPointer() instanceof AllocInst) {
             if (!curArmFunction.containOffset(storeInst.getPointer())) {
+                System.out.println("[parseStore] 分配局部变量空间: " + storeInst.getPointer());
                 parseAlloc((AllocInst) storeInst.getPointer(), true);
             }
             int offset = curArmFunction.getOffset(storeInst.getPointer()) * -1;
             if (ArmTools.isLegalLoadStoreImm(offset) &&
                     !((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
+                System.out.println("[parseStore] 存储整型到局部变量，偏移: " + offset);
                 ArmSw armSw = new ArmSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                 addInstr(armSw, insList, predefine);
             } else if (ArmTools.isLegalVLoadStoreImm(offset)
                     && ((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy()) {
+                System.out.println("[parseStore] 存储浮点型到局部变量，偏移: " + offset);
                 ArmFSw fsw = new ArmFSw(stoReg, ArmCPUReg.getArmSpReg(), new ArmImm(offset));
                 addInstr(fsw, insList, predefine);
             } else {
+                System.out.println("[parseStore] 局部变量偏移超出范围，先加载到寄存器: " + offset);
                 ArmReg assistReg = getNewIntReg();
                 ArmLi li = new ArmLi(new ArmImm(offset), assistReg);
                 addInstr(li, insList, predefine);
@@ -1296,17 +1498,24 @@ public class ArmCodeGen {
                     addInstr(fsw, insList, predefine);
                 }
             }
-        } else if (storeInst.getPointer() instanceof Argument || storeInst.getPointer() instanceof Phi) {
+        }
+        // AArch64: 参数或Phi节点存储
+        else if (storeInst.getPointer() instanceof Argument || storeInst.getPointer() instanceof Phi) {
             ArmReg assistReg = getRegOnlyFromValue(storeInst.getPointer(), insList, predefine);
             assert storeInst.getPointer().getType() instanceof PointerType;
             if ((((PointerType) storeInst.getPointer().getType()).getEleType().isFloatTy())) {
+                System.out.println("[parseStore] 存储浮点型到参数或Phi: " + storeInst.getPointer());
                 ArmFSw fsw = new ArmFSw(stoReg, assistReg, new ArmImm(0));
                 addInstr(fsw, insList, predefine);
             } else {
+                System.out.println("[parseStore] 存储整型到参数或Phi: " + storeInst.getPointer());
                 ArmSw sw = new ArmSw(stoReg, assistReg, new ArmImm(0));
                 addInstr(sw, insList, predefine);
             }
-        } else {
+        }
+        // 非AArch64标准支持的存储类型
+        else {
+            System.err.println("[parseStore] 不支持的存储指针类型: " + storeInst.getPointer());
             assert false;
         }
     }
