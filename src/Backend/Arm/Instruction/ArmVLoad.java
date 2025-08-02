@@ -24,7 +24,7 @@ public class ArmVLoad extends ArmInstruction {
                 return "ldr\t" + getDefReg() + ",\t[" + getOperands().getFirst() + "]";
             } else {
                 // AArch64 floating-point load offset range: 0 to +32760, multiple of 8
-                int offset = imm.getValue();
+                int offset = imm.getIntValue();
                 if (offset >= 0 && offset <= 32760 && offset % 8 == 0) {
                     return "ldr\t" + getDefReg() + ",\t[" + getOperands().getFirst() + ", " + getOperands().get(1) + "]";
                 } else {
