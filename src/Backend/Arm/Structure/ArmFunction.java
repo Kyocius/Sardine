@@ -134,14 +134,18 @@ public class ArmFunction extends ArmLabel {
     }
 
     public String dump() {
+        System.out.println("Dumping function: " + getName() + ", blocks count: " + blocks.getSize());
         if(blocks.getSize() == 0)
             return "";
         StringBuilder sb = new StringBuilder();
         sb.append(".globl").append(" ").append(getName()).append('\n');
         sb.append(getName().replace("@", "")).append(":\n");
         for(IList.INode<ArmBlock, ArmFunction> block: blocks) {
-            sb.append(block.getValue().dump());
+            String blockDump = block.getValue().dump();
+            System.out.println("Block dump length: " + blockDump.length());
+            sb.append(blockDump);
         }
+        System.out.println("Total function dump length: " + sb.length());
         return sb.toString();
     }
 

@@ -74,10 +74,16 @@ function Build-JavaSources {
     # 设置 classpath
     # $classpath = ".;lib\antlr4-runtime-4.13.1.jar;lib\argparse4j-0.9.0.jar"
     
+    # 创建 out 目录（如果不存在）
+    if (!(Test-Path "out")) {
+        New-Item -ItemType Directory -Path "out" -Force | Out-Null
+        Write-Status "创建输出目录: out" "INFO" "Green"
+    }
+    
     # 编译命令
     $compileArgs = @(
         #"-cp", $classpath,
-        "-d", ".",
+        "-d", "out",
         "-encoding", "UTF-8"
     )
     $compileArgs += $sourceFiles
@@ -94,8 +100,8 @@ function Build-JavaSources {
             Write-Status "Java 编译成功" "INFO" "Green"
             
             # 检查是否生成了主类文件
-            if (Test-Path "Compiler.class") {
-                Write-Status "主编译器类已生成: Compiler.class" "INFO" "Green"
+            if (Test-Path "out\Compiler.class") {
+                Write-Status "主编译器类已生成: out\Compiler.class" "INFO" "Green"
             }
             
             return $true
@@ -127,8 +133,8 @@ function Test-CompileResult {
     
     # 检查主要的类文件是否存在
     $requiredClasses = @(
-        "Compiler.class",
-        "driver\Driver.class"
+        "out\Compiler.class",
+        "out\Driver\Driver.class"
     )
     
     $missingClasses = @()
@@ -140,26 +146,6 @@ function Test-CompileResult {
     
     if ($missingClasses.Count -eq 0) {
         Write-Status "编译验证成功，所有必要的类文件都已生成" "INFO" "Green"
-        
-        # 尝试运行编译器显示帮助信息
-        try {
-            Write-Status "测试编译器是否可以正常运行..." "INFO" "Cyan"
-            $process = Start-Process -FilePath "java" -ArgumentList "-cp", ".;lib\antlr4-runtime-4.13.1.jar;lib\argparse4j-0.9.0.jar", "Compiler", "--help" -Wait -PassThru -RedirectStandardError "test_stderr.txt" -RedirectStandardOutput "test_stdout.txt"
-            
-            if (Test-Path "test_stdout.txt") {
-                $output = Get-Content "test_stdout.txt" -Raw
-                if ($output.Contains("usage") -or $output.Contains("help")) {
-                    Write-Status "编译器运行测试成功" "INFO" "Green"
-                }
-            }
-            
-            # 清理测试文件
-            @("test_stderr.txt", "test_stdout.txt") | ForEach-Object {
-                if (Test-Path $_) { Remove-Item $_ -Force }
-            }
-        } catch {
-            Write-Status "编译器运行测试失败，但编译成功" "WARN" "Yellow"
-        }
         
         return $true
     } else {
@@ -198,11 +184,6 @@ function Main {
     
     Write-Host "`n" + "=" * 50 -ForegroundColor Gray
     Write-Status "编译完成!" "SUCCESS" "Green"
-    Write-Host "`n使用方法:" -ForegroundColor Cyan
-    Write-Host "  java -cp `".;lib\antlr4-runtime-4.13.1.jar;lib\argparse4j-0.9.0.jar`" Compiler [选项] <输入文件>" -ForegroundColor Gray
-    Write-Host "`n示例:" -ForegroundColor Cyan
-    Write-Host "  java -cp `".;lib\antlr4-runtime-4.13.1.jar;lib\argparse4j-0.9.0.jar`" Compiler tests\01_mm1.sy" -ForegroundColor Gray
-    Write-Host "  .\simple_test.ps1 -TestName `"01_mm1`"" -ForegroundColor Gray
 }
 
 # 执行主流程

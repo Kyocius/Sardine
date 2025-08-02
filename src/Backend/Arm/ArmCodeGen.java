@@ -86,7 +86,7 @@ public class ArmCodeGen {
 
         for (Function function : irModule.functions()) {
             ArmFunction armFunction = new ArmFunction(removeLeadingAt(function.getName()));
-            armModule.addFunction(function.getName(), armFunction);
+            armModule.addFunction(removeLeadingAt(function.getName()), armFunction);
             value2Label.put(function, armFunction);
             armFunction.parseArgs(function.getArgs(), value2Reg);
         }
@@ -329,6 +329,7 @@ public class ArmCodeGen {
     public void parseFunction(Function function) {
         curArmBlock = null;
         curArmFunction = (ArmFunction) value2Label.get(function);
+        System.out.println("Parsing function: " + function.getName() + ", BBs count: " + function.getBbs().getSize());
         for (IList.INode<BasicBlock, Function> basicBlockNode : function.getBbs()) {
             BasicBlock bb = basicBlockNode.getValue();
             ArmBlock temp_block = new ArmBlock(curArmFunction.getName() +
@@ -342,6 +343,7 @@ public class ArmCodeGen {
             }
             BasicBlock bb = basicBlockNode.getValue();
             curArmBlock = (ArmBlock) value2Label.get(bb);
+            System.out.println("Processing basic block: " + bb.getName() + ", Instructions count: " + bb.getInsts().getSize());
             if (!flag) {
                 // AArch64 function prologue: save frame pointer and link register
                 ArmStp prologue = new ArmStp(ArmCPUReg.getArmCPUReg(29), ArmCPUReg.getArmRetReg(),
@@ -392,6 +394,9 @@ public class ArmCodeGen {
         }
         if (function.getBbs().getSize() != 0) {
             curArmFunction.addBlock(new IList.INode<>(curArmBlock));
+            System.out.println("Added final block to function: " + function.getName() + ", total blocks: " + curArmFunction.getBlocks().getSize());
+        } else {
+            System.out.println("No basic blocks to add for function: " + function.getName());
         }
     }
 
