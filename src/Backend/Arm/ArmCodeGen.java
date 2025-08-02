@@ -482,7 +482,7 @@ public class ArmCodeGen {
                     getLeftVal(), insList, predefine);
             ArmReg reg2 = getRegOnlyFromValue(((BinaryInst)
                     binaryInst.getLeftVal()).getRightVal(), insList, predefine);
-            addInstr(new ArmSmull(ArmCPUReg.getArmCPUReg(0), ArmCPUReg.getArmCPUReg(1),
+            addInstr(new ArmSmull(ArmCPUReg.getArmCPUReg(0),
                     reg1, reg2), insList, predefine);
             assert binaryInst.getRightVal() instanceof ConstInteger;
             addInstr(new ArmLi(new ArmImm(((ConstInteger)binaryInst.getRightVal()).getValue()),
@@ -626,7 +626,7 @@ public class ArmCodeGen {
             type = getOnlyRevBigSmallType(type);
         }
         if (rightOp instanceof ArmImm) {
-            if (ArmTools.isArmImmCanBeEncoded(((ArmImm) rightOp).getValue())) {
+            if (ArmTools.isArmImmCanBeEncoded(((ArmImm) rightOp).getIntValue())) {
                 addInstr(new ArmCompare(leftOp, rightOp, ArmCompare.CmpType.cmp), insList, predefine);
             } else {
                 ArmReg reg = getNewIntReg();
@@ -694,7 +694,7 @@ public class ArmCodeGen {
                 addInstr(mv, insList, predefine);
             } else {
                 //TODO: 是否能换成减法呢
-                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getValue())) {
+                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getIntValue())) {
                     ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(left,
                             new ArmImm(((ArmImm) right).getValue()))), resReg,
                             ArmBinary.ArmBinaryType.add);
@@ -865,7 +865,7 @@ public class ArmCodeGen {
                 ArmRev rev = new ArmRev((ArmReg) right, resReg);
                 addInstr(rev, insList, predefine);
             } else {
-                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) left).getValue())) {
+                if (ArmTools.isArmImmCanBeEncoded(((ArmImm) left).getIntValue())) {
                     // For rsb (reverse subtract), we need to compute left - right
                     // In ARM64, use sub with operands swapped: sub res, left_reg, right_reg
                     ArmReg assistReg = getNewIntReg();
@@ -890,7 +890,7 @@ public class ArmCodeGen {
                     ArmMv mv = new ArmMv((ArmReg) left, resReg);
                     addInstr(mv, insList, predefine);
                 } else {
-                    if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getValue())) {
+                    if (ArmTools.isArmImmCanBeEncoded(((ArmImm) right).getIntValue())) {
                         ArmBinary binary = new ArmBinary(new ArrayList<>(Arrays.asList(left,
                                 new ArmImm(((ArmImm) right).getValue()))), resReg,
                                 ArmBinary.ArmBinaryType.sub);
@@ -1101,7 +1101,7 @@ public class ArmCodeGen {
                 if (m >= 2147483648L) {
                     ArmFma fma = new ArmFma(leftOperand, reg1, leftOperand, reg2);
                     addInstr(fma, insList, predefine);
-                    fma.setSigned(true);
+                    //fma.setSigned(true);
                 } else {
                     addInstr(new ArmLongMul(reg2, leftOperand, reg1), insList, predefine);
                 }
@@ -1635,7 +1635,7 @@ public class ArmCodeGen {
             }
             int offset = curArmFunction.getOffset(ptrInst.getTarget()) * -1;
             if (op2 instanceof ArmImm) {
-                offset = offset + ((ArmImm) op2).getValue() * 4;
+                offset = offset + ((ArmImm) op2).getIntValue() * 4;
                 ptr2Offset.put(ptrInst, offset);
             } else {
                 assert op2 instanceof ArmVirReg;
@@ -1668,7 +1668,7 @@ public class ArmCodeGen {
             }
             if (ptr2Offset.containsKey(ptrInst.getTarget())) {
                 if (op2 instanceof ArmImm) {
-                    int offset = ptr2Offset.get(ptrInst.getTarget()) + ((ArmImm) op2).getValue() * 4;
+                    int offset = ptr2Offset.get(ptrInst.getTarget()) + ((ArmImm) op2).getIntValue() * 4;
                     ptr2Offset.put(ptrInst, offset);
                 } else {
                     assert op2 instanceof ArmReg;
@@ -1696,7 +1696,7 @@ public class ArmCodeGen {
                 ArmReg op1 = value2Reg.get(ptrInst.getTarget());
                 ArmReg resReg = getResReg(ptrInst, ArmVirReg.RegType.intType);
                 if (op2 instanceof ArmImm) {
-                    int offset = ((ArmImm) op2).getValue() * 4;
+                    int offset = ((ArmImm) op2).getIntValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(op1,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1724,7 +1724,7 @@ public class ArmCodeGen {
             addInstr(li, insList, predefine);
             if (!(op2 instanceof ArmImm && ((ArmImm) op2).getValue() == 0)) {
                 if (op2 instanceof ArmImm) {
-                    int offset = ((ArmImm) op2).getValue() * 4;
+                    int offset = ((ArmImm) op2).getIntValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary add = new ArmBinary(new ArrayList<>(Arrays.asList(resReg,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1751,7 +1751,7 @@ public class ArmCodeGen {
                 addInstr(mv, insList, predefine);
                 if (!(op2 instanceof ArmImm && ((ArmImm) op2).getValue() == 0)) {
                     if (op2 instanceof ArmImm) {
-                        int offset = ((ArmImm) op2).getValue() * 4;
+                        int offset = ((ArmImm) op2).getIntValue() * 4;
                         if (ArmTools.isArmImmCanBeEncoded(offset)) {
                             ArmBinary add = new ArmBinary(new ArrayList<>(Arrays.asList(resReg,
                                     new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1788,7 +1788,7 @@ public class ArmCodeGen {
                 }
                 value2Reg.put(ptrInst.getTarget(), argReg);
                 if (op2 instanceof ArmImm) {
-                    offset = ((ArmImm) op2).getValue() * 4;
+                    offset = ((ArmImm) op2).getIntValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(argReg,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1811,7 +1811,7 @@ public class ArmCodeGen {
             ArmReg phiReg = getRegOnlyFromValue(ptrInst.getTarget(), insList, predefine);
             ArmVirReg resReg = getResReg(ptrInst, ArmVirReg.RegType.intType);
             if (op2 instanceof ArmImm) {
-                int offset = ((ArmImm) op2).getValue() * 4;
+                int offset = ((ArmImm) op2).getIntValue() * 4;
                 if (ArmTools.isArmImmCanBeEncoded(offset)) {
                     ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(phiReg,
                             new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.add);
@@ -1848,7 +1848,7 @@ public class ArmCodeGen {
             }
             int offset = curArmFunction.getOffset(ptrInst.getTarget()) * -1;
             if (op2 instanceof ArmImm) {
-                offset = offset - ((ArmImm) op2).getValue() * 4;
+                offset = offset - ((ArmImm) op2).getIntValue() * 4;
                 ptr2Offset.put(ptrInst, offset);
             } else {
                 assert op2 instanceof ArmVirReg;
@@ -1881,7 +1881,7 @@ public class ArmCodeGen {
             }
             if (ptr2Offset.containsKey(ptrInst.getTarget())) {
                 if (op2 instanceof ArmImm) {
-                    int offset = ptr2Offset.get(ptrInst.getTarget()) - ((ArmImm) op2).getValue() * 4;
+                    int offset = ptr2Offset.get(ptrInst.getTarget()) - ((ArmImm) op2).getIntValue() * 4;
                     ptr2Offset.put(ptrInst, offset);
                 } else {
                     assert op2 instanceof ArmReg;
@@ -1909,7 +1909,7 @@ public class ArmCodeGen {
                 ArmReg op1 = value2Reg.get(ptrInst.getTarget());
                 ArmReg resReg = getResReg(ptrInst, ArmVirReg.RegType.intType);
                 if (op2 instanceof ArmImm) {
-                    int offset = ((ArmImm) op2).getValue() * 4;
+                    int offset = ((ArmImm) op2).getIntValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(op1,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
@@ -1937,7 +1937,7 @@ public class ArmCodeGen {
             addInstr(li, insList, predefine);
             if (!(op2 instanceof ArmImm && ((ArmImm) op2).getValue() == 0)) {
                 if (op2 instanceof ArmImm) {
-                    int offset = ((ArmImm) op2).getValue() * 4;
+                    int offset = ((ArmImm) op2).getIntValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary add = new ArmBinary(new ArrayList<>(Arrays.asList(resReg,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
@@ -1964,7 +1964,7 @@ public class ArmCodeGen {
                 addInstr(mv, insList, predefine);
                 if (!(op2 instanceof ArmImm && ((ArmImm) op2).getValue() == 0)) {
                     if (op2 instanceof ArmImm) {
-                        int offset = ((ArmImm) op2).getValue() * 4;
+                        int offset = ((ArmImm) op2).getIntValue() * 4;
                         if (ArmTools.isArmImmCanBeEncoded(offset)) {
                             ArmBinary add = new ArmBinary(new ArrayList<>(Arrays.asList(resReg,
                                     new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
@@ -2001,7 +2001,7 @@ public class ArmCodeGen {
                 }
                 value2Reg.put(ptrInst.getTarget(), argReg);
                 if (op2 instanceof ArmImm) {
-                    offset = ((ArmImm) op2).getValue() * 4;
+                    offset = ((ArmImm) op2).getIntValue() * 4;
                     if (ArmTools.isArmImmCanBeEncoded(offset)) {
                         ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(argReg,
                                 new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
@@ -2024,7 +2024,7 @@ public class ArmCodeGen {
             ArmReg phiReg = getRegOnlyFromValue(ptrInst.getTarget(), insList, predefine);
             ArmVirReg resReg = getResReg(ptrInst, ArmVirReg.RegType.intType);
             if (op2 instanceof ArmImm) {
-                int offset = ((ArmImm) op2).getValue() * 4;
+                int offset = ((ArmImm) op2).getIntValue() * 4;
                 if (ArmTools.isArmImmCanBeEncoded(offset)) {
                     ArmBinary addi = new ArmBinary(new ArrayList<>(Arrays.asList(phiReg,
                             new ArmImm(offset))), resReg, ArmBinary.ArmBinaryType.sub);
