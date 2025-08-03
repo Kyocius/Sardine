@@ -241,14 +241,14 @@ public class ArmWriter {
                             printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + ", #:lo12:" + cleanGvName + "]"));
                         }
                     }
+                    return;
                 } else if (val instanceof AllocInst) {
+                    // For LoadInst from AllocInst, we need to load the value from the stack slot
                     int offset = stackMap.get(val);
                     if (offset <= 4095) {
-                        if (reg.isFloat) {
-                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[sp, #" + offset + "]"));
-                        } else {
-                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[sp, #" + offset + "]"));
-                        }
+                        String instName = reg.isFloat ? "ldr" : "ldr";
+                        String regName = reg.isFloat ? reg.abiName32() : reg.abiName32();
+                        printAArch64Instr(instName, Arrays.asList(regName, "[sp, #" + offset + "]"));
                     } else {
                         // Large offset, need register addressing
                         try (Reg regAddr = regAlloc.allocIntReg()) {
@@ -264,9 +264,12 @@ public class ArmWriter {
                                 }
                             }
                             printAArch64Instr("add", Arrays.asList(regAddr.abiName(), "sp", regAddr.abiName()));
-                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
+                            String instName = reg.isFloat ? "ldr" : "ldr";
+                            String regName = reg.isFloat ? reg.abiName32() : reg.abiName32();
+                            printAArch64Instr(instName, Arrays.asList(regName, "[" + regAddr.abiName() + "]"));
                         }
                     }
+                    return;
                 } else { // If non-static address, use memory slot
                     int offset = stackMap.get(val);
                     if (offset <= 4095) {
@@ -276,6 +279,7 @@ public class ArmWriter {
                                 printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
                             }
                         } else {
+                            // Load pointer from memory slot and then load value
                             printAArch64Instr("ldr", Arrays.asList(reg.abiName(), "[sp, #" + offset + "]"));
                             printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + reg.abiName() + "]"));
                         }
@@ -323,10 +327,14 @@ public class ArmWriter {
                         printAArch64Instr("add", Arrays.asList(reg.abiName(), "sp", reg.abiName()));
                     }
                 } else { // If non-static address, use memory slot
-                    // For addresses, we need to load the pointer value first
+                    // For non-pointer values, load them directly based on their type
                     int offset = stackMap.get(val);
                     if (offset <= 4095) {
-                        printAArch64Instr("ldr", Arrays.asList(reg.abiName(), "[sp, #" + offset + "]"));
+                        if (val.getType().isPointerType()) {
+                            printAArch64Instr("ldr", Arrays.asList(reg.abiName(), "[sp, #" + offset + "]"));
+                        } else {
+                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[sp, #" + offset + "]"));
+                        }
                     } else {
                         try (Reg regAddr = regAlloc.allocIntReg()) {
                             if (offset <= 65535) {
@@ -338,7 +346,11 @@ public class ArmWriter {
                                 }
                             }
                             printAArch64Instr("add", Arrays.asList(regAddr.abiName(), "sp", regAddr.abiName()));
-                            printAArch64Instr("ldr", Arrays.asList(reg.abiName(), "[" + regAddr.abiName() + "]"));
+                            if (val.getType().isPointerType()) {
+                                printAArch64Instr("ldr", Arrays.asList(reg.abiName(), "[" + regAddr.abiName() + "]"));
+                            } else {
+                                printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
+                            }
                         }
                     }
                 }
@@ -380,7 +392,9 @@ public class ArmWriter {
             if (reg.isFloat) {
                 printAArch64Instr("str", Arrays.asList(reg.abiName32(), "[sp, #" + offset + "]"));
             } else {
-                printAArch64Instr("str", Arrays.asList(reg.abiName32(), "[sp, #" + offset + "]"));
+                // Use 64-bit register name for pointers, 32-bit for integers
+                String regName = (val.getType().isPointerType()) ? reg.abiName() : reg.abiName32();
+                printAArch64Instr("str", Arrays.asList(regName, "[sp, #" + offset + "]"));
             }
         } else {
             // Large offset, need to use register addressing
@@ -397,7 +411,8 @@ public class ArmWriter {
                     }
                 }
                 printAArch64Instr("add", Arrays.asList(regAddr.abiName(), "sp", regAddr.abiName()));
-                printAArch64Instr("str", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
+                String regName = (val.getType().isPointerType()) ? reg.abiName() : reg.abiName32();
+                printAArch64Instr("str", Arrays.asList(regName, "[" + regAddr.abiName() + "]"));
             }
         }
     }
