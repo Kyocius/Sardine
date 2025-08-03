@@ -391,71 +391,109 @@ public class ArmWriter {
         // Note: ldr/str are handled differently in AArch64
     }
 
-    public void printModule(Module module) {
+    public void printModule(IRModule irModule) {
         os.println(".data");
-        for (GlobalVar global : module.getGlobals()) {
+        for (GlobalVar global : irModule.globalVars()) {
             printGlobalData(global);
         }
 
         os.println(".bss");
-        for (GlobalVar global : module.getGlobals()) {
+        for (GlobalVar global : irModule.globalVars()) {
             printGlobalBss(global);
         }
 
         os.println(".text");
-        for (Function func : module.getFunctions()) {
-            os.println(".global " + func.fnName);
+        for (Function func : irModule.functions()) {
+            os.println(".global " + func.getName());
         }
-        for (Function func : module.getFunctions()) {
+        for (Function func : irModule.functions()) {
             printFunc(func);
         }
     }
 
     public void printGlobalData(GlobalVar global) {
-        if (global.getInitializer() == null)
+        if (global.isZeroInit())
             return;
 
         os.println(global.getName() + ":");
-        printConstData(global.getInitializer(), global);
+        printConstData(global);
     }
 
-    private void printConstData(Constant val, GlobalVar global) {
-        assert val != null : "Invalid initializer";
-        if (val instanceof ConstantArray) {
-            ConstantArray arr = (ConstantArray) val;
-            for (Constant elt : arr.getValues()) {
-                printConstData(elt, global);
-            }
-            int totalCount = ((ArrayType) arr.getType()).getSize();
-            // 不足的部分自动填充0
-            if (totalCount > arr.getValues().size()) {
-                os.println(".zero " + (4 * (totalCount - arr.getValues().size())));
-            }
-            os.println(".size " + global.getName() + ", " + (totalCount * 4));
-        } else if (val instanceof ConstantValue) {
-            Const constVal = (Const) val;
-            if (constVal.isInt()) {
-                os.println(".word " + constVal.getInt());
+    /**
+     * Print constant data for AArch64 using the IR model
+     * Handles arrays, integers, and floats with proper zero-initialization optimization
+     */
+    private void printConstData(GlobalVar global) {
+        if (global.isArray()) {
+            // Handle array constants
+            if (global.isZeroInit()) {
+                // Zero-initialized array
+                os.println("\t.zero\t" + (global.getSize() * 4));
             } else {
-                os.println(".word " + reinterpretFloat(constVal.getFloat()));
+                // Array with explicit values
+                ArrayList<Value> values = global.getValues();
+                int lastNonZeroIndex = -1;
+                
+                for (int i = 0; i < values.size(); i++) {
+                    Value val = values.get(i);
+                    
+                    if (val instanceof ConstInteger) {
+                        int intVal = ((ConstInteger) val).getValue();
+                        if (intVal != 0) {
+                            // Output .zero for any gap since last non-zero
+                            if (lastNonZeroIndex != i - 1) {
+                                int zeroCount = i - 1 - lastNonZeroIndex;
+                                if (zeroCount > 0) {
+                                    os.println("\t.zero\t" + (4 * zeroCount));
+                                }
+                            }
+                            lastNonZeroIndex = i;
+                            os.println("\t.word\t" + intVal);
+                        }
+                    } else if (val instanceof ConstFloat) {
+                        float floatVal = ((ConstFloat) val).getValue();
+                        if (floatVal != 0.0f) {
+                            // Output .zero for any gap since last non-zero
+                            if (lastNonZeroIndex != i - 1) {
+                                int zeroCount = i - 1 - lastNonZeroIndex;
+                                if (zeroCount > 0) {
+                                    os.println("\t.zero\t" + (4 * zeroCount));
+                                }
+                            }
+                            lastNonZeroIndex = i;
+                            // Use .word for 32-bit float representation in AArch64
+                            os.println("\t.word\t" + Float.floatToIntBits(floatVal));
+                        }
+                    }
+                }
+                
+                // Handle trailing zeros
+                if (lastNonZeroIndex < values.size() - 1) {
+                    int trailingZeros = values.size() - 1 - lastNonZeroIndex;
+                    os.println("\t.zero\t" + (4 * trailingZeros));
+                }
             }
         } else {
-            throw new RuntimeException("NYI");
+            // Handle single value (not array)
+            Value val = global.getValue();
+            if (val instanceof ConstInteger) {
+                os.println("\t.word\t" + ((ConstInteger) val).getValue());
+            } else if (val instanceof ConstFloat) {
+                // Use .word for 32-bit float representation in AArch64
+                os.println("\t.word\t" + Float.floatToIntBits(((ConstFloat) val).getValue()));
+            } else {
+                throw new RuntimeException("Unsupported constant type: " + val.getClass().getSimpleName());
+            }
         }
     }
 
     public void printGlobalBss(GlobalVar global) {
-        if (global.getInitializer() != null) {
+        if (!global.isZeroInit()) {
             return;
         }
         os.println(global.getName() + ":");
-        int size = 4;
-        if (global.getAllocatedType() instanceof ArrayType) {
-            ArrayType arrTy = (ArrayType) global.getAllocatedType();
-            assert !(arrTy.getArrayEltType() instanceof ArrayType) : "invalid";
-            size = 4 * arrTy.getSize();
-        }
-        os.println(".skip " + size);
+        int size = global.isArray() ? global.getSize() * 4 : 4;
+        os.println("\t.skip\t" + size);
     }
 
     public void printFunc(Function function) {
