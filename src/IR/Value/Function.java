@@ -63,6 +63,16 @@ public class Function extends Value{
         }
     }
 
+
+    public int getArgNo(Argument arg) {
+        for (int i = 0; i < args.size(); i++) {
+            if (args.get(i).equals(arg)) {
+                return i;
+            }
+        }
+        throw new RuntimeException("Unknown argument");
+    }
+
     public void setStoreGV(boolean storeGV) {
         this.storeGV = storeGV;
     }

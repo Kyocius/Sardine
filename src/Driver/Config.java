@@ -7,7 +7,7 @@ public class Config {
     public static String llvmIrOutFile = "llvm_ir.ll";
     public static String outputFile = "testcase.s";
     //  isO1: 是否开启优化
-    public static boolean isO1 = true;
+    public static boolean isO1 = false; // cuo
     //  outputLLVM: 是否输出中端
     public static boolean outputLLVM = false;
     //  outputNoAlloc: 是否输出未分配寄存器的版本
@@ -23,10 +23,10 @@ public class Config {
     public static boolean armBackend = true;
     public static boolean riscvBackend = false;
 
-    public static boolean divOptOpen = true;
+    public static boolean divOptOpen = false; //cuo
 
-    public static boolean spill2FloatOpen = true;
-    public static boolean parallelOpen = true;
+    public static boolean spill2FloatOpen = false; //cuo
+    public static boolean parallelOpen = false; //cuo
     public static int parallelNum = 4;
-    public static boolean enhancedLICM = true;
+    public static boolean enhancedLICM = false; // cuo
 }

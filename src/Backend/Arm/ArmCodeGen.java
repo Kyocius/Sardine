@@ -382,6 +382,8 @@ public class ArmCodeGen {
 
                 // ARM64: 在函数开始分配栈空间
                 int stackSize = curArmFunction.getStackPosition();
+
+                System.out.println("[parseFunction] 当前栈空间大小: " + stackSize);
                 if (stackSize > 0) {
                     // 16 字节对齐
                     stackSize = (stackSize + 15) & ~15;

@@ -95,6 +95,7 @@ public class ArmFunction extends ArmLabel {
 
     public void alloc(AllocInst allocInst) {
         // ARMv8-A: Ensure 16-byte stack alignment
+        System.out.println("Allocating stack space for: " + allocInst.getName() + ", size: " + allocInst.getSize());
         int allocSize = allocInst.getSize() * 4;
         // Align allocation size to 16 bytes
         allocSize = (allocSize + 15) & ~15;
