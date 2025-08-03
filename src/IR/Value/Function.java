@@ -17,7 +17,7 @@ public class Function extends Value{
     private boolean mayHasSideEffect;
     private boolean storeGV;
     private boolean storeArg;
-    private boolean isLibFunc = false;
+    public boolean isLibFunc = false;
     private final LinkedHashSet<GlobalVar> loadGVs;
     private final LinkedHashSet<GlobalVar> storeGVs;
 
