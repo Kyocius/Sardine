@@ -1,11 +1,8 @@
 package Driver;
 
-import Backend.Arm.tools.BackendPeepHole;
-import Backend.Arm.tools.RegisterAllocator;
-import Backend.Riscv.Optimization.BackPeepHole;
-import Backend.Riscv.Optimization.ReOrdering;
-import Backend.Riscv.Process.RegAllocator;
-import Backend.Riscv.RiscvCodeGen;
+//import Backend.Arm.tools.BackendPeepHole;
+//import Backend.Arm.tools.RegisterAllocator;
+
 import Frontend.AST;
 import Frontend.Lexer;
 import Frontend.Parser;
@@ -17,7 +14,7 @@ import Utils.BlockChecker;
 import Utils.IRDump;
 import Utils.LLVMIRDump;
 import Utils.UseValueChecker;
-import Backend.Arm.ArmCodeGen;
+//import Backend.Arm.ArmCodeGen;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -58,51 +55,13 @@ public class Driver {
 //        if (!Config.noDump) IRDump.DumpModule(irModule,"_afterMir");
 
         if (Config.armBackend){
-            ArmCodeGen armCodeGen = new ArmCodeGen(irModule);
-            armCodeGen.run();
-            if (!Config.noDump) armCodeGen.dump();
-
-            BackendPeepHole backendPeepHole = new BackendPeepHole(armCodeGen.getArmModule());
-            backendPeepHole.DataFlowRun();
-            if (!Config.noDump) backendPeepHole.DataFlowDump();
-
-            RegisterAllocator registerAllocator = new RegisterAllocator(armCodeGen.getArmModule());
-            registerAllocator.run();
-            if (!Config.noDump) registerAllocator.dump();
-
-            backendPeepHole.run();
             try {
-                var out = new BufferedWriter(new FileWriter(Config.outputFile));
-                out.write(armCodeGen.getArmModule().toString());
-                out.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        if (Config.riscvBackend) {
-            RiscvCodeGen riscvCodeGen = new RiscvCodeGen(irModule);
-            riscvCodeGen.run();
-            if (!Config.noDump) riscvCodeGen.dump();
-
-            ReOrdering riscvReordering = new ReOrdering(riscvCodeGen.getRvModule());
-            riscvReordering.run();
-            if (!Config.noDump) riscvReordering.dump();
-
-            BackPeepHole backPeepHole = new BackPeepHole(riscvCodeGen.getRvModule());
-            backPeepHole.DataFlowRun();
-            if (!Config.noDump) backPeepHole.DataFlowDump();
-
-            RegAllocator regAllocator = new RegAllocator(riscvCodeGen.getRvModule());
-            regAllocator.run();
-            if (!Config.noDump) regAllocator.dump();
-
-            backPeepHole.run();
-            if (!Config.noDump) backPeepHole.dump();
-
-            try {
-                var out = new BufferedWriter(new FileWriter(Config.outputFile));
-                out.write(riscvCodeGen.getRvModule().toString());
-                out.close();
+                var fileOut = new java.io.FileOutputStream(Config.outputFile);
+                var printStream = new java.io.PrintStream(fileOut);
+                Backend.ArmWriter armWriter = new Backend.ArmWriter(printStream);
+                armWriter.printModule(irModule);
+                printStream.close();
+                fileOut.close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
