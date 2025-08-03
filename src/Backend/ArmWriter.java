@@ -252,20 +252,19 @@ public class ArmWriter {
                     } else {
                         // Large offset, need register addressing
                         try (Reg regAddr = regAlloc.allocIntReg()) {
-                            if (offset <= 65535) {
-                                printAArch64Instr("mov", Arrays.asList(regAddr.abiName(), "#" + offset));
+                            int low16 = offset & 0xFFFF;
+                            int high16 = (offset >> 16) & 0xFFFF;
+                            
+                            if (high16 == 0) {
+                                printAArch64Instr("mov", Arrays.asList(regAddr.abiName(), "#" + low16));
                             } else {
-                                printAArch64Instr("movz", Arrays.asList(regAddr.abiName(), "#" + (offset & 0xFFFF)));
-                                if ((offset >> 16) != 0) {
-                                    printAArch64Instr("movk", Arrays.asList(regAddr.abiName(), "#" + (offset >> 16), "lsl #16"));
+                                printAArch64Instr("movz", Arrays.asList(regAddr.abiName(), "#" + high16, "lsl #16"));
+                                if (low16 != 0) {
+                                    printAArch64Instr("movk", Arrays.asList(regAddr.abiName(), "#" + low16));
                                 }
                             }
                             printAArch64Instr("add", Arrays.asList(regAddr.abiName(), "sp", regAddr.abiName()));
-                            if (reg.isFloat) {
-                                printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
-                            } else {
-                                printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
-                            }
+                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
                         }
                     }
                 } else { // If non-static address, use memory slot
@@ -283,12 +282,15 @@ public class ArmWriter {
                     } else {
                         // Large offset, need register addressing for both steps
                         try (Reg regAddr = regAlloc.allocIntReg()) {
-                            if (offset <= 65535) {
-                                printAArch64Instr("mov", Arrays.asList(regAddr.abiName(), "#" + offset));
+                            int low16 = offset & 0xFFFF;
+                            int high16 = (offset >> 16) & 0xFFFF;
+                            
+                            if (high16 == 0) {
+                                printAArch64Instr("mov", Arrays.asList(regAddr.abiName(), "#" + low16));
                             } else {
-                                printAArch64Instr("movz", Arrays.asList(regAddr.abiName(), "#" + (offset & 0xFFFF)));
-                                if ((offset >> 16) != 0) {
-                                    printAArch64Instr("movk", Arrays.asList(regAddr.abiName(), "#" + (offset >> 16), "lsl #16"));
+                                printAArch64Instr("movz", Arrays.asList(regAddr.abiName(), "#" + high16, "lsl #16"));
+                                if (low16 != 0) {
+                                    printAArch64Instr("movk", Arrays.asList(regAddr.abiName(), "#" + low16));
                                 }
                             }
                             printAArch64Instr("add", Arrays.asList(regAddr.abiName(), "sp", regAddr.abiName()));
@@ -383,34 +385,47 @@ public class ArmWriter {
         } else {
             // Large offset, need to use register addressing
             try (Reg regAddr = regAlloc.allocIntReg()) {
-                if (offset <= 65535) {
-                    printAArch64Instr("mov", Arrays.asList(regAddr.abiName(), "#" + offset));
+                int low16 = offset & 0xFFFF;
+                int high16 = (offset >> 16) & 0xFFFF;
+                
+                if (high16 == 0) {
+                    printAArch64Instr("mov", Arrays.asList(regAddr.abiName(), "#" + low16));
                 } else {
-                    printAArch64Instr("movz", Arrays.asList(regAddr.abiName(), "#" + (offset & 0xFFFF)));
-                    if ((offset >> 16) != 0) {
-                        printAArch64Instr("movk", Arrays.asList(regAddr.abiName(), "#" + (offset >> 16), "lsl #16"));
+                    printAArch64Instr("movz", Arrays.asList(regAddr.abiName(), "#" + high16, "lsl #16"));
+                    if (low16 != 0) {
+                        printAArch64Instr("movk", Arrays.asList(regAddr.abiName(), "#" + low16));
                     }
                 }
                 printAArch64Instr("add", Arrays.asList(regAddr.abiName(), "sp", regAddr.abiName()));
-                if (reg.isFloat) {
-                    printAArch64Instr("str", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
-                } else {
-                    printAArch64Instr("str", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
-                }
+                printAArch64Instr("str", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
             }
         }
     }
 
     public void storeRegToAddress(Reg reg, Value ptr) {
         if (ptr instanceof AllocInst) {
-            if (reg.isFloat) {
+            int offset = stackMap.get(ptr);
+            if (offset <= 4095) {
+                // 直接使用立即数偏移
+                printAArch64Instr("str", Arrays.asList(reg.abiName32(), "[sp, #" + offset + "]"));
+            } else {
+                // 使用寄存器寻址处理大偏移
                 try (Reg regAddr = regAlloc.allocIntReg()) {
-                    int offset = stackMap.get(ptr);
-                    printAArch64Instr("add", Arrays.asList(regAddr.abiName(), "sp", "#" + offset));
+                    // 使用movz/movk构造大偏移量
+                    int low16 = offset & 0xFFFF;
+                    int high16 = (offset >> 16) & 0xFFFF;
+                    
+                    if (high16 == 0) {
+                        printAArch64Instr("mov", Arrays.asList(regAddr.abiName(), "#" + low16));
+                    } else {
+                        printAArch64Instr("movz", Arrays.asList(regAddr.abiName(), "#" + high16, "lsl #16"));
+                        if (low16 != 0) {
+                            printAArch64Instr("movk", Arrays.asList(regAddr.abiName(), "#" + low16));
+                        }
+                    }
+                    printAArch64Instr("add", Arrays.asList(regAddr.abiName(), "sp", regAddr.abiName()));
                     printAArch64Instr("str", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + "]"));
                 }
-            } else {
-                printAArch64Instr("str", Arrays.asList(reg.abiName32(), getStackOper(ptr)));
             }
         } else {
             try (Reg regPtr = loadToReg(ptr)) {
