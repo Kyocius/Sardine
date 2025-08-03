@@ -69,6 +69,11 @@ public class ArmWriter {
         this.labelMap = new HashMap<>();
     }
 
+    // Helper method to remove @ prefix from variable names
+    private String cleanName(String name) {
+        return name.startsWith("@") ? name.substring(1) : name;
+    }
+
     // RAII helper for reg alloc - Java version uses try-with-resources
     public class Reg implements AutoCloseable {
         public boolean isFloat;
@@ -226,12 +231,14 @@ public class ArmWriter {
                 val = ld.getPointer();
                 if (val instanceof GlobalVar gv) {
                     if (!reg.isFloat) {
-                        printAArch64Instr("adrp", Arrays.asList(reg.abiName(), gv.getName() + "@PAGE"));
-                        printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + reg.abiName() + ", " + gv.getName() + "@PAGEOFF]"));
+                        String cleanGvName = cleanName(gv.getName());
+                        printAArch64Instr("adrp", Arrays.asList(reg.abiName(), cleanGvName + "@PAGE"));
+                        printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + reg.abiName() + ", " + cleanGvName + "@PAGEOFF]"));
                     } else {
                         try (Reg regAddr = regAlloc.allocIntReg()) {
-                            printAArch64Instr("adrp", Arrays.asList(regAddr.abiName(), gv.getName() + "@PAGE"));
-                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + ", " + gv.getName() + "@PAGEOFF]"));
+                            String cleanGvName = cleanName(gv.getName());
+                            printAArch64Instr("adrp", Arrays.asList(regAddr.abiName(), cleanGvName + "@PAGE"));
+                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + ", " + cleanGvName + "@PAGEOFF]"));
                         }
                     }
                 } else if (val instanceof AllocInst) {
@@ -258,8 +265,9 @@ public class ArmWriter {
             } else {
                 if (val instanceof GlobalVar gv) {
                     assert !reg.isFloat : "Address should not be float";
-                    printAArch64Instr("adrp", Arrays.asList(reg.abiName(), gv.getName() + "@PAGE"));
-                    printAArch64Instr("add", Arrays.asList(reg.abiName(), reg.abiName(), gv.getName() + "@PAGEOFF"));
+                    String cleanGvName = cleanName(gv.getName());
+                    printAArch64Instr("adrp", Arrays.asList(reg.abiName(), cleanGvName + "@PAGE"));
+                    printAArch64Instr("add", Arrays.asList(reg.abiName(), reg.abiName(), cleanGvName + "@PAGEOFF"));
                 } else if (val instanceof AllocInst) {
                     assert !reg.isFloat : "Address should not be float";
                     int offset = stackMap.get(val);
@@ -361,7 +369,7 @@ public class ArmWriter {
 
         os.println(".text");
         for (Function func : irModule.functions()) {
-            String funcName = func.getName().startsWith("@") ? func.getName().substring(1) : func.getName();
+            String funcName = cleanName(func.getName());
             os.println(".global " + funcName);
         }
         for (Function func : irModule.functions()) {
@@ -373,7 +381,8 @@ public class ArmWriter {
         if (global.isZeroInit())
             return;
 
-        os.println(global.getName() + ":");
+        String globalName = cleanName(global.getName());
+        os.println(globalName + ":");
         printConstData(global);
     }
 
@@ -449,7 +458,8 @@ public class ArmWriter {
         if (!global.isZeroInit()) {
             return;
         }
-        os.println(global.getName() + ":");
+        String globalName = cleanName(global.getName());
+        os.println(globalName + ":");
         int size = global.isArray() ? global.getSize() * 4 : 4;
         os.println("\t.skip\t" + size);
     }
@@ -459,7 +469,7 @@ public class ArmWriter {
             return;
 
         curFunction = function;
-        String funcName = function.getName().startsWith("@") ? function.getName().substring(1) : function.getName();
+        String funcName = cleanName(function.getName());
         os.println(funcName + ":");
 
         CallInfo funcCallInfo = arrangeCallInfo(function.getArgs());
@@ -545,7 +555,22 @@ public class ArmWriter {
         }
 
         if (stackSize > 0) {
-            printAArch64Instr("sub", Arrays.asList("sp", "sp", "#" + stackSize));
+            if (stackSize <= 4095) {
+                printAArch64Instr("sub", Arrays.asList("sp", "sp", "#" + stackSize));
+            } else {
+                // For large stack sizes, use register
+                try (Reg regTemp = regAlloc.allocIntReg()) {
+                    if (stackSize <= 65535) {
+                        printAArch64Instr("mov", Arrays.asList(regTemp.abiName(), "#" + stackSize));
+                    } else {
+                        printAArch64Instr("movz", Arrays.asList(regTemp.abiName(), "#" + (stackSize & 0xffff)));
+                        if ((stackSize >> 16) != 0) {
+                            printAArch64Instr("movk", Arrays.asList(regTemp.abiName(), "#" + ((stackSize >> 16) & 0xffff), "lsl #16"));
+                        }
+                    }
+                    printAArch64Instr("sub", Arrays.asList("sp", "sp", regTemp.abiName()));
+                }
+            }
         }
 
         // 保存寄存器参数到栈
@@ -753,7 +778,22 @@ public class ArmWriter {
                     }
                 }
                 if (stackSize > 0) {
-                    printAArch64Instr("add", Arrays.asList("sp", "sp", "#" + stackSize));
+                    if (stackSize <= 4095) {
+                        printAArch64Instr("add", Arrays.asList("sp", "sp", "#" + stackSize));
+                    } else {
+                        // For large stack sizes, use register
+                        try (Reg regTemp = regAlloc.allocIntReg()) {
+                            if (stackSize <= 65535) {
+                                printAArch64Instr("mov", Arrays.asList(regTemp.abiName(), "#" + stackSize));
+                            } else {
+                                printAArch64Instr("movz", Arrays.asList(regTemp.abiName(), "#" + (stackSize & 0xffff)));
+                                if ((stackSize >> 16) != 0) {
+                                    printAArch64Instr("movk", Arrays.asList(regTemp.abiName(), "#" + ((stackSize >> 16) & 0xffff), "lsl #16"));
+                                }
+                            }
+                            printAArch64Instr("add", Arrays.asList("sp", "sp", regTemp.abiName()));
+                        }
+                    }
                 }
                 printAArch64Instr("ldp", Arrays.asList("lr", "x29", "[sp], #16"));
                 printAArch64Instr("ret", List.of());
@@ -761,8 +801,7 @@ public class ArmWriter {
             }
             case Call: {
                 CallInst callInst = (CallInst) instr;
-                List<Value> args = callInst.getOperands();
-                args = args.subList(1, args.size()); // Remove function from args
+                List<Value> args = callInst.getParams();
                 CallInfo callInfo = arrangeCallInfo(args);
 
                 // 认领寄存器
@@ -809,8 +848,7 @@ public class ArmWriter {
                     }
                     argsOffset += 8;  // AArch64 uses 8-byte stack slots
                 }
-                String callFuncName = callInst.getOperand(0).getName().startsWith("@") ? 
-                    callInst.getOperand(0).getName().substring(1) : callInst.getOperand(0).getName();
+                String callFuncName = cleanName(callInst.getFunction().getName());
                 printAArch64Instr("bl", List.of(callFuncName));
 
                 // 返回值存储到栈槽位
@@ -898,6 +936,7 @@ public class ArmWriter {
         if (!labelMap.containsKey(bb)) {
             labelMap.put(bb, labelMap.size());
         }
-        return "." + bb.getName() + "_" + labelMap.get(bb);
+        String cleanBbName = cleanName(bb.getName());
+        return "." + cleanBbName + "_" + labelMap.get(bb);
     }
 }
