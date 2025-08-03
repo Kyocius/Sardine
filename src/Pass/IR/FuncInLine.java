@@ -265,6 +265,24 @@ public class FuncInLine implements Pass.IRPass {
     private boolean isInlinable(Function function){
         //  main函数或调用了其他函数 不能被内联
         if(function.getName().equals("@main")) return false;
+
+        //  检查函数是否使用全局变量，如果使用则不内联
+        for (IList.INode<BasicBlock, Function> bbNode : function.getBbs()) {
+            BasicBlock bb = bbNode.getValue();
+            for (IList.INode<Instruction, BasicBlock> instNode : bb.getInsts()) {
+                Instruction inst = instNode.getValue();
+                if (inst instanceof LoadInst loadInst) {
+                    if (!loadInst.getOperands().isEmpty() && loadInst.getOperands().get(0) instanceof GlobalVar) {
+                        return false; // 使用全局变量，不内联
+                    }
+                }else if (inst instanceof StoreInst storeInst) {
+                    if (storeInst.getOperands().size() > 1 && storeInst.getOperands().get(1) instanceof GlobalVar) {
+                        return false; // 修改全局变量，不内联
+                    }
+                }
+            }
+        }
+        
         //  设置一个内联阈值
 //        int inst_num = 0;
 //        for (IList.INode<BasicBlock, Function> bbNode : function.getBbs()) {

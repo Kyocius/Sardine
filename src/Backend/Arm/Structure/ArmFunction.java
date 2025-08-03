@@ -133,19 +133,23 @@ public class ArmFunction extends ArmLabel {
         return stackPosition;
     }
 
+    /**
+     * 导出 ARM 函数的汇编文本表示
+     * @return 汇编字符串
+     */
     public String dump() {
-        System.out.println("Dumping function: " + getName() + ", blocks count: " + blocks.getSize());
-        if(blocks.getSize() == 0)
+        System.out.println("正在导出函数: " + getName() + "，基本块数量: " + blocks.getSize());
+        if (blocks.getSize() == 0)
             return "";
         StringBuilder sb = new StringBuilder();
         sb.append(".globl").append(" ").append(getName()).append('\n');
         sb.append(getName().replace("@", "")).append(":\n");
-        for(IList.INode<ArmBlock, ArmFunction> block: blocks) {
+        for (IList.INode<ArmBlock, ArmFunction> block : blocks) {
             String blockDump = block.getValue().dump();
-            System.out.println("Block dump length: " + blockDump.length());
+            System.out.println("当前基本块导出长度: " + blockDump.length());
             sb.append(blockDump);
         }
-        System.out.println("Total function dump length: " + sb.length());
+        System.out.println("整个函数导出总长度: " + sb.length());
         return sb.toString();
     }
 
