@@ -1,76 +1,40 @@
 package Backend;
 
 import IR.*;
+import IR.Type.ArrayType;
 import IR.Value.*;
 import IR.Value.Instructions.*;
+import Utils.DataStruct.IList;
 
 import java.io.PrintStream;
 import java.util.*;
 
-import static IR.Value.Instructions.OP.*;
-
 public class ArmWriter {
-    private PrintStream os;
-    private Map<Value, Integer> stackMap;
-    private Map<BasicBlock, Integer> labelMap;
+    private final PrintStream os;
+    private final Map<Value, Integer> stackMap;
+    private final Map<BasicBlock, Integer> labelMap;
     private Function curFunction = null;
     private int stackSize;
-    private int floatCnt = 0;
 
     private String getCondTagStr(OP tag) {
-        switch (tag) {
-            case Eq:
-                return "eq";
-            case Ne:
-                return "ne";
-            case Lt:
-                return "lt";
-            case Le:
-                return "le";
-            case Gt:
-                return "gt";
-            case Ge:
-                return "ge";
-            default:
-                throw new RuntimeException("Invalid tag");
-        }
-    }
-
-    private OP getNotCond(OP tag) {
-        switch (tag) {
-            case Eq:
-                return OP.Ne;
-            case Ne:
-                return OP.Eq;
-            case Lt:
-                return OP.Ge;
-            case Le:
-                return OP.Gt;
-            case Gt:
-                return OP.Le;
-            case Ge:
-                return OP.Lt;
-            default:
-                throw new RuntimeException("Invalid tag");
-        }
+        return switch (tag) {
+            case Eq -> "eq";
+            case Ne -> "ne";
+            case Lt -> "lt";
+            case Le -> "le";
+            case Gt -> "gt";
+            case Ge -> "ge";
+            default -> throw new RuntimeException("Invalid tag");
+        };
     }
 
     private boolean isNaiveLogicalOp(Instruction instr) {
-        if (!(instr instanceof BinaryInst)) return false;
-        BinaryInst cmpInst = (BinaryInst) instr;
+        if (!(instr instanceof BinaryInst cmpInst)) return false;
         if (cmpInst.getOp() != OP.Ne && cmpInst.getOp() != OP.Eq)
             return false;
         Value rhs = cmpInst.getRightVal();
         if (!(rhs instanceof Const)) return false;
-        Const constRhs = (Const) rhs;
-        //if (!constRhs.isInt() || constRhs.getInt() != 0)
-        if (!(constRhs instanceof ConstInteger) || ((ConstInteger) constRhs).getValue() != 0)
-            return false;
-        return true;
-    }
-
-    private int reinterpretFloat(float x) {
-        return Float.floatToIntBits(x);
+        return !(rhs instanceof ConstInteger constRhs) || constRhs.getValue() == 0;
     }
 
     public static class CallInfo {
@@ -82,8 +46,7 @@ public class ArmWriter {
     private <T extends Value> CallInfo arrangeCallInfo(List<T> args) {
         CallInfo info = new CallInfo();
         final int maxIntRegs = 8, maxFloatRegs = 8; // AArch64: x0-x7, d0-d7
-        for (T rarg : args) {
-            Value arg = rarg;
+        for (T arg : args) {
             if (arg.getType().isFloatTy()) {
                 if (info.argsInFloatReg.size() < maxFloatRegs) {
                     info.argsInFloatReg.add(arg);
@@ -111,13 +74,14 @@ public class ArmWriter {
     public class Reg implements AutoCloseable {
         public boolean isFloat;
         public int id;
-        private NaiveAllocator alloc;
+        private final NaiveAllocator alloc;
 
         public String abiName() {
             assert id >= 0 : "Invalid reg!";
             if (isFloat) {
                 return "d" + id;  // AArch64: d0-d31 for double precision
             } else {
+                if (id == 29) return "fp"; // AArch64: x29 is frame pointer
                 if (id == 30) return "lr";
                 if (id == 31) return "sp";
                 return "x" + id;  // AArch64: x0-x30 for 64-bit, w0-w30 for 32-bit
@@ -129,6 +93,7 @@ public class ArmWriter {
             if (isFloat) {
                 return "s" + id;  // AArch64: s0-s31 for single precision
             } else {
+                if (id == 29) return "fp"; // AArch64: x29 is frame pointer
                 if (id == 30) return "lr";
                 if (id == 31) return "sp";
                 return "w" + id;  // AArch64: w0-w30 for 32-bit integers
@@ -230,11 +195,8 @@ public class ArmWriter {
 
     public void loadToSpecificReg(Reg reg, Value val) {
         if (val instanceof Const) {
-            Const constVal = (Const) val;
-            //if (constVal.isInt()) {
-            if (constVal instanceof ConstInteger) {
-                //long imm = constVal.getInt();
-                long imm = ((ConstInteger) constVal).getValue();
+            if (val instanceof ConstInteger constVal) {
+                long imm = constVal.getValue();
                 if (imm >= 0 && imm <= 65535) {
                     // Use mov for small positive immediates
                     printAArch64Instr("mov", Arrays.asList(reg.abiName32(), "#" + imm));
@@ -250,7 +212,7 @@ public class ArmWriter {
                 }
             } else {
                 // Load float constant
-                int floatBits = Float.floatToIntBits(((ConstFloat)constVal).getValue());
+                int floatBits = Float.floatToIntBits(((ConstFloat)val).getValue());
 
                 try (Reg regInt = regAlloc.allocIntReg()) {
                     printAArch64Instr("movz", Arrays.asList(regInt.abiName32(), "#" + (floatBits & 0xffff)));
@@ -261,11 +223,9 @@ public class ArmWriter {
                 }
             }
         } else {
-            if (val instanceof LoadInst) {
-                LoadInst ld = (LoadInst) val;
+            if (val instanceof LoadInst ld) {
                 val = ld.getPointer();
-                if (val instanceof GlobalVar) {
-                    GlobalVar gv = (GlobalVar) val;
+                if (val instanceof GlobalVar gv) {
                     if (!reg.isFloat) {
                         printAArch64Instr("adrp", Arrays.asList(reg.abiName(), gv.getName() + "@PAGE"));
                         printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + reg.abiName() + ", " + gv.getName() + "@PAGEOFF]"));
@@ -297,8 +257,7 @@ public class ArmWriter {
                     }
                 }
             } else {
-                if (val instanceof GlobalVar) {
-                    GlobalVar gv = (GlobalVar) val;
+                if (val instanceof GlobalVar gv) {
                     assert !reg.isFloat : "Address should not be float";
                     printAArch64Instr("adrp", Arrays.asList(reg.abiName(), gv.getName() + "@PAGE"));
                     printAArch64Instr("add", Arrays.asList(reg.abiName(), reg.abiName(), gv.getName() + "@PAGEOFF"));
@@ -328,8 +287,7 @@ public class ArmWriter {
     }
 
     public void assignToSpecificReg(Reg reg, Value val) {
-        if (val instanceof Argument) {
-            Argument arg = (Argument) val;
+        if (val instanceof Argument arg) {
             int argNo = curFunction.getArgNo(arg);
             if (argNo < 8) { // AArch64: x0-x7 for integer args
                 if (arg.getType().isFloatTy()) {
@@ -497,11 +455,11 @@ public class ArmWriter {
     }
 
     public void printFunc(Function function) {
-        if (function.isBuiltin)
+        if (function.isLibFunc)
             return;
 
         curFunction = function;
-        os.println(function.fnName + ":");
+        os.println(function.getName() + ":");
 
         CallInfo funcCallInfo = arrangeCallInfo(function.getArgs());
 
@@ -521,11 +479,12 @@ public class ArmWriter {
 
         // 给函数内 call 指令的栈参数分配 stack slot
         int callStackSize = 0;
-        for (BasicBlock bb : function.getBasicBlocks()) {
-            for (Instruction instr : bb.getInstructions()) {
-                if (instr instanceof CallInst) {
-                    CallInst callInst = (CallInst) instr;
-                    CallInfo callInfo = arrangeCallInfo(callInst.getArgs());
+        for (IList.INode<BasicBlock, Function> bbNode : function.getBbs()) {
+            BasicBlock bb = bbNode.getValue();
+            for (IList.INode<Instruction, BasicBlock> instNode : bb.getInsts()) {
+                Instruction instr = instNode.getValue();
+                if (instr instanceof CallInst callInst) {
+                    CallInfo callInfo = arrangeCallInfo(callInst.getOperands());
                     callStackSize = Math.max(callInfo.argsOnStack.size() * 8, callStackSize); // 8 bytes per arg in AArch64
                 }
             }
@@ -543,23 +502,23 @@ public class ArmWriter {
         }
 
         // 给指令结果分配 stack slot
-        for (BasicBlock bb : function.getBasicBlocks()) {
-            for (Instruction instr : bb.getInstructions()) {
-                if (instr.tag == OP.Load)
+        for (IList.INode<BasicBlock, Function> bbNode : function.getBbs()) {
+            BasicBlock bb = bbNode.getValue();
+            for (IList.INode<Instruction, BasicBlock> instNode : bb.getInsts()) {
+                Instruction instr = instNode.getValue();
+                if (instr.getOp() == OP.Load)
                     continue;
-                if (instr.tag.ordinal() >= OP.BeginBooleanOp.ordinal() &&
-                    instr.tag.ordinal() <= OP.EndBooleanOp.ordinal()) {
-                    // For all br use, do not allocate stack. The codegen is in BranchInst.
-                    boolean allBrUse = instr.getUses().stream()
-                        .allMatch(use -> use.getUser() instanceof BranchInst);
-                    if (allBrUse)
-                        continue;
-                }
+                // Check for comparison operations that are only used in branches
+                boolean allBrUse = instr.getUses().stream()
+                    .allMatch(use -> use.getUser() instanceof BrInst);
+                if (allBrUse && (instr.getOp() == OP.Eq || instr.getOp() == OP.Ne ||
+                                instr.getOp() == OP.Lt || instr.getOp() == OP.Le ||
+                                instr.getOp() == OP.Gt || instr.getOp() == OP.Ge))
+                    continue;
+
                 stackMap.put(instr, stackSize);
-                if (instr instanceof AllocaInst) {
-                    AllocaInst alloca = (AllocaInst) instr;
-                    if (alloca.getAllocatedType() instanceof ArrayType) {
-                        ArrayType arrTy = (ArrayType) alloca.getAllocatedType();
+                if (instr instanceof AllocInst alloca) {
+                    if (alloca.getAllocatedType() instanceof ArrayType arrTy) {
                         assert !(arrTy.getArrayEltType() instanceof ArrayType) : "invalid";
                         stackSize += 4 * arrTy.getSize();
                         // Align to 8 bytes for AArch64
@@ -610,8 +569,8 @@ public class ArmWriter {
             argsOffset += 8;  // AArch64 uses 8-byte slots
         }
 
-        for (BasicBlock bb : function.getBasicBlocks()) {
-            printBasicBlock(bb);
+        for (IList.INode<BasicBlock, Function> bbNode : function.getBbs()) {
+            printBasicBlock(bbNode.getValue());
         }
 
         os.println();
@@ -619,8 +578,8 @@ public class ArmWriter {
 
     public void printBasicBlock(BasicBlock basicBlock) {
         os.println(getLabel(basicBlock) + ":");
-        for (Instruction instr : basicBlock.getInstructions()) {
-            printInstr(instr);
+        for (IList.INode<Instruction, BasicBlock> instNode : basicBlock.getInsts()) {
+            printInstr(instNode.getValue());
         }
     }
 
@@ -631,12 +590,12 @@ public class ArmWriter {
                 // Do nothing for naive regalloc
                 break;
             }
-            case GetElementPtr: {
-                GetElementPtrInst gep = (GetElementPtrInst) instr;
+            case GetelementPtr: {
+                GEPInst gep = (GEPInst) instr;
                 try (Reg regPtr = loadToReg(gep.getPointer())) {
-                    if (gep.getIndex() instanceof Const) {
-                        Const constIndex = (Const) gep.getIndex();
-                        int offset = 4 * constIndex.getInt();
+                    if (gep.getIdx() instanceof Const) {
+                        Const constIndex = (Const) gep.getIdx();
+                        int offset = 4 * ((ConstInteger) constIndex).getValue();
                         if (offset >= 0 && offset < 4096) {
                             printAArch64Instr("add", Arrays.asList(regPtr.abiName(), regPtr.abiName(), "#" + offset));
                         } else {
@@ -646,7 +605,7 @@ public class ArmWriter {
                             }
                         }
                     } else {
-                        try (Reg regOffset = loadToReg(gep.getIndex())) {
+                        try (Reg regOffset = loadToReg(gep.getIdx())) {
                             printAArch64Instr("add", Arrays.asList(regPtr.abiName(), regPtr.abiName(), regOffset.abiName(), "lsl #2"));
                         }
                     }
@@ -697,7 +656,7 @@ public class ArmWriter {
                 }
                 break;
             }
-            case IntToFloat: {
+            case Int2float: {
                 try (Reg ireg = loadToReg(instr.getOperand(0));
                      Reg freg = regAlloc.allocFloatReg()) {
                     printAArch64Instr("scvtf", Arrays.asList(freg.abiName32(), ireg.abiName32()));
@@ -705,7 +664,7 @@ public class ArmWriter {
                 }
                 break;
             }
-            case FloatToInt: {
+            case Float2int: {
                 try (Reg freg = loadToReg(instr.getOperand(0));
                      Reg ireg = regAlloc.allocIntReg()) {
                     printAArch64Instr("fcvtzs", Arrays.asList(ireg.abiName32(), freg.abiName32()));
@@ -721,18 +680,18 @@ public class ArmWriter {
             case Ne: {
                 // For all br use, do nothing. The codegen is in BranchInst.
                 boolean allBrUse = instr.getUses().stream()
-                    .allMatch(use -> use.getUser() instanceof BranchInst);
+                    .allMatch(use -> use.getUser() instanceof BrInst);
                 if (allBrUse)
                     break;
                     
                 BinaryInst cmpInst = (BinaryInst) instr;
                 if (isNaiveLogicalOp(cmpInst)) {
-                    try (Reg regLhs = loadToReg(cmpInst.getLHS())) {
-                        if (cmpInst.tag == OP.Ne) {
+                    try (Reg regLhs = loadToReg(cmpInst.getLeftVal())) {
+                        if (cmpInst.getOp() == OP.Ne) {
                             printAArch64Instr("cmp", Arrays.asList(regLhs.abiName32(), "#0"));
                             printAArch64Instr("cset", Arrays.asList(regLhs.abiName32(), "ne"));
                             storeRegToMemorySlot(regLhs, instr);
-                        } else if (cmpInst.tag == OP.Eq) {
+                        } else if (cmpInst.getOp() == OP.Eq) {
                             printAArch64Instr("cmp", Arrays.asList(regLhs.abiName32(), "#0"));
                             printAArch64Instr("cset", Arrays.asList(regLhs.abiName32(), "eq"));
                             storeRegToMemorySlot(regLhs, instr);
@@ -741,52 +700,51 @@ public class ArmWriter {
                         }
                     }
                 } else {
-                    if (cmpInst.getLHS().getType().isFloatTy()) {
-                        try (Reg regLhs = loadToReg(cmpInst.getLHS());
-                             Reg regRhs = loadToReg(cmpInst.getRHS());
+                    if (cmpInst.getLeftVal().getType().isFloatTy()) {
+                        try (Reg regLhs = loadToReg(cmpInst.getLeftVal());
+                             Reg regRhs = loadToReg(cmpInst.getRightVal());
                              Reg regRes = regAlloc.allocIntReg()) {
                             printAArch64Instr("fcmp", Arrays.asList(regLhs.abiName32(), regRhs.abiName32()));
-                            printAArch64Instr("cset", Arrays.asList(regRes.abiName32(), getCondTagStr(cmpInst.tag)));
+                            printAArch64Instr("cset", Arrays.asList(regRes.abiName32(), getCondTagStr(cmpInst.getOp())));
                             storeRegToMemorySlot(regRes, instr);
                         }
                     } else {
-                        try (Reg regLhs = loadToReg(cmpInst.getLHS());
-                             Reg regRhs = loadToReg(cmpInst.getRHS())) {
+                        try (Reg regLhs = loadToReg(cmpInst.getLeftVal());
+                             Reg regRhs = loadToReg(cmpInst.getRightVal())) {
                             printAArch64Instr("cmp", Arrays.asList(regLhs.abiName32(), regRhs.abiName32()));
-                            printAArch64Instr("cset", Arrays.asList(regLhs.abiName32(), getCondTagStr(cmpInst.tag)));
+                            printAArch64Instr("cset", Arrays.asList(regLhs.abiName32(), getCondTagStr(cmpInst.getOp())));
                             storeRegToMemorySlot(regLhs, instr);
                         }
                     }
                 }
                 break;
             }
-            case Branch: {
-                BranchInst brInst = (BranchInst) instr;
-                if (!(brInst.getCondition() instanceof BinaryInst)) {
+            case Br: {
+                BrInst brInst = (BrInst) instr;
+                if (!(brInst.getJudVal() instanceof BinaryInst)) {
                     throw new RuntimeException("Branch condition must be a cmp op");
                 }
-                BinaryInst cond = (BinaryInst) brInst.getCondition();
-                assert cond.isCmpOp() : "Branch condition must be a cmp op";
-                String condTag = getCondTagStr(cond.tag);
+                BinaryInst cond = (BinaryInst) brInst.getJudVal();
+                String condTag = getCondTagStr(cond.getOp());
                 printCmpInstr(cond);
-                printAArch64Instr("b." + condTag, Arrays.asList(getLabel(brInst.getTrueBlock())));
-                printAArch64Instr("b", Arrays.asList(getLabel(brInst.getFalseBlock())));
+                printAArch64Instr("b." + condTag, List.of(getLabel(brInst.getTrueBlock())));
+                printAArch64Instr("b", List.of(getLabel(brInst.getFalseBlock())));
                 break;
             }
-            case Jump:
-                JumpInst jumpInst = (JumpInst) instr;
-                printAArch64Instr("b", Arrays.asList(getLabel(jumpInst.getTargetBlock())));
+            case Jmp:
+                JmpInst jumpInst = (JmpInst) instr;
+                printAArch64Instr("b", List.of(getLabel(jumpInst.getJumpBlock())));
                 break;
-            case Return: {
-                ReturnInst retInst = (ReturnInst) instr;
+            case Ret: {
+                RetInst retInst = (RetInst) instr;
                 if (retInst.getNumOperands() == 1) {
-                    if (retInst.getReturnValue().getType().isIntegerTy()) {
+                    if (retInst.getRetVal().getType().isIntegerTy()) {
                         try (Reg regRet = regAlloc.claimIntReg(0)) {  // x0 for return value
-                            assignToSpecificReg(regRet, retInst.getReturnValue());
+                            assignToSpecificReg(regRet, retInst.getRetVal());
                         }
                     } else {
                         try (Reg regRet = regAlloc.claimFloatReg(0)) { // d0 for float return value
-                            assignToSpecificReg(regRet, retInst.getReturnValue());
+                            assignToSpecificReg(regRet, retInst.getRetVal());
                         }
                     }
                 }
@@ -794,12 +752,13 @@ public class ArmWriter {
                     printAArch64Instr("add", Arrays.asList("sp", "sp", "#" + stackSize));
                 }
                 printAArch64Instr("ldp", Arrays.asList("lr", "x29", "[sp], #16"));
-                printAArch64Instr("ret", Arrays.asList());
+                printAArch64Instr("ret", List.of());
                 break;
             }
             case Call: {
                 CallInst callInst = (CallInst) instr;
-                List<Value> args = callInst.getArgs();
+                List<Value> args = callInst.getOperands();
+                args = args.subList(1, args.size()); // Remove function from args
                 CallInfo callInfo = arrangeCallInfo(args);
 
                 // 认领寄存器
@@ -846,7 +805,7 @@ public class ArmWriter {
                     }
                     argsOffset += 8;  // AArch64 uses 8-byte stack slots
                 }
-                printAArch64Instr("bl", Arrays.asList(callInst.getCallee().fnName));
+                printAArch64Instr("bl", List.of(callInst.getOperand(0).getName()));
 
                 // 返回值存储到栈槽位
                 if (!callInst.getType().isVoidTy()) {
@@ -864,7 +823,7 @@ public class ArmWriter {
                 break;
             }
             default:
-                System.err.println("NYI Instruction tag: " + instr.tag.ordinal());
+                System.err.println("NYI Instruction op: " + instr.getOp().ordinal());
                 throw new RuntimeException("NYI");
         }
     }
@@ -877,7 +836,7 @@ public class ArmWriter {
             !operands.get(0).equals("sp") && 
             !operands.get(0).equals("lr") &&
             !operands.get(0).equals("x29") &&
-            operands.get(0).length() > 0 && 
+            !operands.get(0).isEmpty() &&
             (operands.get(0).charAt(0) == 'd' || operands.get(0).charAt(0) == 's');
 
         if (intInstr2FltInstrOpCode.containsKey(op) && isFloatRegName) {
@@ -923,54 +882,16 @@ public class ArmWriter {
     }
 
     public String getStackOper(Value val) {
-        if (val instanceof LoadInst) {
-            LoadInst ld = (LoadInst) val;
+        if (val instanceof LoadInst ld) {
             val = ld.getPointer();
         }
         return "[sp, #" + stackMap.get(val) + "]";
-    }
-
-    public String getImme(int imm, int maxBits) {
-        if (imm >= 0 && imm < (1 << maxBits)) {
-            return "#" + imm;
-        } else {
-            // For AArch64, use a register to hold large immediates
-            try (Reg reg = regAlloc.allocIntReg()) {
-                if (imm >= 0 && imm <= 65535) {
-                    printAArch64Instr("movz", Arrays.asList(reg.abiName(), "#" + imm));
-                } else {
-                    printAArch64Instr("movz", Arrays.asList(reg.abiName(), "#" + (imm & 0xffff)));
-                    if ((imm >> 16) != 0) {
-                        printAArch64Instr("movk", Arrays.asList(reg.abiName(), "#" + ((imm >> 16) & 0xffff), "lsl #16"));
-                    }
-                }
-                return reg.abiName();
-            }
-        }
-    }
-
-    public String getImme(int imm) {
-        return getImme(imm, 12);
-    }
-
-    public String getImme(float imm) {
-        // Load float constant
-        int floatBits = Float.floatToIntBits(imm);
-        try (Reg regInt = regAlloc.allocIntReg()) {
-            printAArch64Instr("movz", Arrays.asList(regInt.abiName32(), "#" + (floatBits & 0xffff)));
-            if ((floatBits >> 16) != 0)
-                printAArch64Instr("movk", Arrays.asList(regInt.abiName32(), "#" + ((floatBits >> 16) & 0xffff), "lsl #16"));
-            try (Reg regFlt = regAlloc.allocFloatReg()) {
-                printAArch64Instr("fmov", Arrays.asList(regFlt.abiName32(), regInt.abiName32()));
-                return regFlt.abiName32();
-            }
-        }
     }
 
     public String getLabel(BasicBlock bb) {
         if (!labelMap.containsKey(bb)) {
             labelMap.put(bb, labelMap.size());
         }
-        return "." + bb.getLabel() + "_" + labelMap.get(bb);
+        return "." + bb.getName() + "_" + labelMap.get(bb);
     }
 }

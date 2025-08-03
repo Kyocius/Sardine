@@ -1,0 +1,63 @@
+antlr4生成的相关文件:
+sysy2022.g4: 语法规则文件 antlr-4.13.1.jar的输入 参考SysY2022语言的语法规则
+sysy2022/sysy2022Lexer.interp/tokens: 中间文件
+sysy2022Lexer.h/cpp: 词法分析器
+sysy2022Parser.h/cpp: 语法分析器
+sysy2022Visitor.h/cpp: 访问器基类 其成员函数都是纯虚函数
+sysy2022BaseVisitor.h/cpp: 访问器基类的一个默认实现/空实现 作用是单纯遍历整个语法树
+
+antlr介绍:
+ANTLR是一种强大的跨语言语法解析器
+可以通过语法规则(.g4文件)生成目标语言(如C++)的词法解析器(Lexer)和语法解析器(Parser)
+并能提供相应的visitor类以便通过访问者模式遍历语法分析树(ParseTree)
+
+antlr使用方法:
+安装antlr-4.13.1.jar 注意需要java-11环境
+vscode有antlr插件 可解析.g4文件
+首先编写sysy2022.g4语法规则文件
+然后指定开发语言为c++语言 运行:
+antlr4 -Dlanguage=Cpp sysy2022.g4 -visitor -no-listener
+自动生成若干相关.h/cpp文件 所克隆的仓库已经生成.h/cpp文件 无需以上步骤
+对于antlr 生成一次即可 但如需修改.g4文件则需要重新生成
+往后只需直接使用sysy2022Parser/Visitor.h即可
+使用访问者模式遍历语法分析树时 只要继承自sysy2022BaseVisitor类 然后确定并编写各个语法树节点需要完成的语义动作即可
+例如 需要新的访问者类如codegen时 应继承sysy2022BaseVisitor 并重写需要的功能函数 其余函数使用sysy2022BaseVisitor的默认实现
+
+antlr运行时库:
+ANTLR需要运行时环境antlr-runtime 官网有源码提供
+本地构建时将通过CMake相关配置自动拉取ANTLR运行时库代码 因此第一次构建花费时间可能较长
+
+参考资料:
+
+官网 & 下载: 
+antlr官网: https://www.antlr.org
+antlr下载: https://www.antlr.org/download.html
+antlr github releases: https://github.com/antlr/antlr4/releases
+
+github & 相关教程:
+antlr github: https://github.com/antlr/antlr4
+antlr文档(ANTLR 4 Documentation): https://github.com/antlr/antlr4/blob/master/doc/index.md
+antlr教程: https://github.com/antlr/antlr4/blob/master/doc/getting-started.md
+antlr构建: https://github.com/antlr/antlr4/blob/master/doc/building-antlr.md
+**antlr c++文档: https://github.com/antlr/antlr4/blob/master/doc/cpp-target.md
+
+运行时库 & cmake配置:
+antlr c++ runtime文档: https://github.com/antlr/antlr4/tree/master/runtime/Cpp
+antlr c++ cmake文档: https://github.com/antlr/antlr4/tree/master/runtime/Cpp/cmake
+antlr c++ cmake教程: https://beyondtheloop.dev/Antlr-cpp-cmake
+**antlr runtime api(只找到java的): https://www.antlr.org/api/Java/org/antlr/v4/runtime/package-summary.html
+
+语法示例:
+antlr语法示例: https://github.com/antlr/grammars-v4
+antlr语法示例 - c: https://github.com/antlr/grammars-v4/blob/master/c/C.g4
+antlr语法示例 - c++: https://github.com/antlr/grammars-v4/tree/master/cpp
+
+其它教程:
+官网doc的中文翻译:
+**ANTLR v4 中文文档: https://daichangya.github.io/antlr4-doc
+ANTLR v4 中文文档: https://wizardforcel.gitbooks.io/antlr4-short-course/content/getting-started.html
+
+antlr教程: https://tomassetti.me/antlr-mega-tutorial/
+**antlr c++教程(含visitor的使用): https://tomassetti.me/getting-started-antlr-cpp/
+
+antlr教程: https://blog.csdn.net/qq_37771475/article/details/106546742
