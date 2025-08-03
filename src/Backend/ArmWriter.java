@@ -361,7 +361,8 @@ public class ArmWriter {
 
         os.println(".text");
         for (Function func : irModule.functions()) {
-            os.println(".global " + func.getName());
+            String funcName = func.getName().startsWith("@") ? func.getName().substring(1) : func.getName();
+            os.println(".global " + funcName);
         }
         for (Function func : irModule.functions()) {
             printFunc(func);
@@ -458,7 +459,8 @@ public class ArmWriter {
             return;
 
         curFunction = function;
-        os.println(function.getName() + ":");
+        String funcName = function.getName().startsWith("@") ? function.getName().substring(1) : function.getName();
+        os.println(funcName + ":");
 
         CallInfo funcCallInfo = arrangeCallInfo(function.getArgs());
 
@@ -807,7 +809,9 @@ public class ArmWriter {
                     }
                     argsOffset += 8;  // AArch64 uses 8-byte stack slots
                 }
-                printAArch64Instr("bl", List.of(callInst.getOperand(0).getName()));
+                String callFuncName = callInst.getOperand(0).getName().startsWith("@") ? 
+                    callInst.getOperand(0).getName().substring(1) : callInst.getOperand(0).getName();
+                printAArch64Instr("bl", List.of(callFuncName));
 
                 // 返回值存储到栈槽位
                 if (!callInst.getType().isVoidTy()) {
