@@ -232,13 +232,13 @@ public class ArmWriter {
                 if (val instanceof GlobalVar gv) {
                     if (!reg.isFloat) {
                         String cleanGvName = cleanName(gv.getName());
-                        printAArch64Instr("adrp", Arrays.asList(reg.abiName(), cleanGvName + "@PAGE"));
-                        printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + reg.abiName() + ", " + cleanGvName + "@PAGEOFF]"));
+                        printAArch64Instr("adrp", Arrays.asList(reg.abiName(), "#:hi12:" + cleanGvName));
+                        printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + reg.abiName() + ", #:lo12:" + cleanGvName + "]"));
                     } else {
                         try (Reg regAddr = regAlloc.allocIntReg()) {
                             String cleanGvName = cleanName(gv.getName());
-                            printAArch64Instr("adrp", Arrays.asList(regAddr.abiName(), cleanGvName + "@PAGE"));
-                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + ", " + cleanGvName + "@PAGEOFF]"));
+                            printAArch64Instr("adrp", Arrays.asList(regAddr.abiName(), "#:hi12:" + cleanGvName));
+                            printAArch64Instr("ldr", Arrays.asList(reg.abiName32(), "[" + regAddr.abiName() + ", #:lo12:" + cleanGvName + "]"));
                         }
                     }
                 } else if (val instanceof AllocInst) {
@@ -266,8 +266,8 @@ public class ArmWriter {
                 if (val instanceof GlobalVar gv) {
                     assert !reg.isFloat : "Address should not be float";
                     String cleanGvName = cleanName(gv.getName());
-                    printAArch64Instr("adrp", Arrays.asList(reg.abiName(), cleanGvName + "@PAGE"));
-                    printAArch64Instr("add", Arrays.asList(reg.abiName(), reg.abiName(), cleanGvName + "@PAGEOFF"));
+                    printAArch64Instr("adrp", Arrays.asList(reg.abiName(), "#:hi12:" + cleanGvName));
+                    printAArch64Instr("add", Arrays.asList(reg.abiName(), reg.abiName(), "#:lo12:" + cleanGvName));
                 } else if (val instanceof AllocInst) {
                     assert !reg.isFloat : "Address should not be float";
                     int offset = stackMap.get(val);
