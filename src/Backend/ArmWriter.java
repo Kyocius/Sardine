@@ -752,15 +752,19 @@ public class ArmWriter {
                 break;
             }
             case Add:
+            case Fadd:
                 printBinInstr("add", instr);
                 break;
             case Sub:
+            case Fsub:
                 printBinInstr("sub", instr);
                 break;
             case Mul:
+            case Fmul:
                 printBinInstr("mul", instr);
                 break;
-            case Div: {
+            case Div:
+            case Fdiv: {
                 if (instr.getType().isIntegerTy()) {
                     try (Reg regLhs = loadToReg(instr.getOperand(0));
                          Reg regRhs = loadToReg(instr.getOperand(1))) {
@@ -804,11 +808,17 @@ public class ArmWriter {
                 break;
             }
             case Lt:
+            case FLt:
             case Le:
+            case FLe:
             case Ge:
+            case FGe:
             case Gt:
+            case FGt:
             case Eq:
-            case Ne: {
+            case FEq:
+            case Ne:
+            case FNe: {
                 // For all br use, do nothing. The codegen is in BranchInst.
                 boolean allBrUse = instr.getUseList().stream()
                     .allMatch(use -> use.getUser() instanceof BrInst);
@@ -935,10 +945,10 @@ public class ArmWriter {
 
                 // 寄存器入参
                 for (int i = 0; i < callInfo.argsInIntReg.size(); i++) {
-                    assignToSpecificReg(intRegs.get(i), callInfo.argsInIntReg.get(i));
+                    loadToSpecificReg(intRegs.get(i), callInfo.argsInIntReg.get(i));
                 }
                 for (int i = 0; i < callInfo.argsInFloatReg.size(); i++) {
-                    assignToSpecificReg(floatRegs.get(i), callInfo.argsInFloatReg.get(i));
+                    loadToSpecificReg(floatRegs.get(i), callInfo.argsInFloatReg.get(i));
                 }
 
                 // 其它入参压栈
