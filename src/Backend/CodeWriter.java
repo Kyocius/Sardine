@@ -1,5 +1,7 @@
 package Backend;
 
+import IR.Value.GlobalVar;
+
 import java.io.PrintStream;
 import java.util.*;
 
@@ -47,7 +49,7 @@ public class CodeWriter {
         os.println();
 
         os.println(".data");
-        for (GlobalVariable global : module.globals) {
+        for (GlobalVar global : module.globals) {
             printGlobal(global);
         }
         os.println();
@@ -67,7 +69,7 @@ public class CodeWriter {
     }
 
     // 打印全局变量
-    public void printGlobal(GlobalVariable global) {
+    public void printGlobal(GlobalVar global) {
         os.println(".global " + global.getName());
         os.println(global.getName() + ":");
         // 简化的全局变量初始化，实际应该根据类型处理

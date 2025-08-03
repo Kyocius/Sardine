@@ -1,6 +1,6 @@
 package Backend;
 
-import IR.GlobalVariable;
+import IR.Value.GlobalVar;
 import java.util.*;
 
 // 枚举定义
@@ -442,7 +442,7 @@ class AsmCallInst extends AsmInst {
 // 全局变量加载指令
 class AsmLoadGlobalInst extends AsmInst {
     public AsmValue dst;
-    public GlobalVariable var;
+    public GlobalVar var;
 
     public AsmLoadGlobalInst() {
         super(Tag.LOADGLOBAL);
@@ -502,7 +502,7 @@ class AsmFunc {
 // 模块类
 class AsmModule {
     public List<AsmFunc> funcs = new ArrayList<>();
-    public List<GlobalVariable> globals = new ArrayList<>();
+    public List<GlobalVar> globals = new ArrayList<>();
 
     public AsmFunc getFunction(String name) {
         for (AsmFunc func : funcs) {

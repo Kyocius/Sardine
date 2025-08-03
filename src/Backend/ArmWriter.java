@@ -1,7 +1,6 @@
 package Backend;
 
 import IR.*;
-import IR.Type.ArrayType;
 import IR.Value.*;
 import IR.Value.Instructions.*;
 import Utils.DataStruct.IList;
@@ -509,7 +508,7 @@ public class ArmWriter {
                 if (instr.getOp() == OP.Load)
                     continue;
                 // Check for comparison operations that are only used in branches
-                boolean allBrUse = instr.getUses().stream()
+                boolean allBrUse = instr.getUseList().stream()
                     .allMatch(use -> use.getUser() instanceof BrInst);
                 if (allBrUse && (instr.getOp() == OP.Eq || instr.getOp() == OP.Ne ||
                                 instr.getOp() == OP.Lt || instr.getOp() == OP.Le ||
@@ -518,9 +517,10 @@ public class ArmWriter {
 
                 stackMap.put(instr, stackSize);
                 if (instr instanceof AllocInst alloca) {
-                    if (alloca.getAllocatedType() instanceof ArrayType arrTy) {
-                        assert !(arrTy.getArrayEltType() instanceof ArrayType) : "invalid";
-                        stackSize += 4 * arrTy.getSize();
+                    // Use IR model methods - arrays are handled through isArray() and getSize()
+                    if (alloca.isArray()) {
+                        // For arrays, use the size from AllocInst directly
+                        stackSize += 4 * alloca.getSize();
                         // Align to 8 bytes for AArch64
                         if (stackSize % 8 != 0) {
                             stackSize = (stackSize + 7) & ~7;
@@ -590,12 +590,11 @@ public class ArmWriter {
                 // Do nothing for naive regalloc
                 break;
             }
-            case GetelementPtr: {
-                GEPInst gep = (GEPInst) instr;
-                try (Reg regPtr = loadToReg(gep.getPointer())) {
-                    if (gep.getIdx() instanceof Const) {
-                        Const constIndex = (Const) gep.getIdx();
-                        int offset = 4 * ((ConstInteger) constIndex).getValue();
+            case Ptradd: {
+                PtrInst gep = (PtrInst) instr;
+                try (Reg regPtr = loadToReg(gep.getTarget())) {
+                    if (gep.getOffset() instanceof ConstInteger constIndex) {
+                        int offset = 4 * constIndex.getValue();
                         if (offset >= 0 && offset < 4096) {
                             printAArch64Instr("add", Arrays.asList(regPtr.abiName(), regPtr.abiName(), "#" + offset));
                         } else {
@@ -605,7 +604,7 @@ public class ArmWriter {
                             }
                         }
                     } else {
-                        try (Reg regOffset = loadToReg(gep.getIdx())) {
+                        try (Reg regOffset = loadToReg(gep.getOffset())) {
                             printAArch64Instr("add", Arrays.asList(regPtr.abiName(), regPtr.abiName(), regOffset.abiName(), "lsl #2"));
                         }
                     }
@@ -656,7 +655,7 @@ public class ArmWriter {
                 }
                 break;
             }
-            case Int2float: {
+            case Itof: {
                 try (Reg ireg = loadToReg(instr.getOperand(0));
                      Reg freg = regAlloc.allocFloatReg()) {
                     printAArch64Instr("scvtf", Arrays.asList(freg.abiName32(), ireg.abiName32()));
@@ -664,7 +663,7 @@ public class ArmWriter {
                 }
                 break;
             }
-            case Float2int: {
+            case Ftoi: {
                 try (Reg freg = loadToReg(instr.getOperand(0));
                      Reg ireg = regAlloc.allocIntReg()) {
                     printAArch64Instr("fcvtzs", Arrays.asList(ireg.abiName32(), freg.abiName32()));
@@ -679,7 +678,7 @@ public class ArmWriter {
             case Eq:
             case Ne: {
                 // For all br use, do nothing. The codegen is in BranchInst.
-                boolean allBrUse = instr.getUses().stream()
+                boolean allBrUse = instr.getUseList().stream()
                     .allMatch(use -> use.getUser() instanceof BrInst);
                 if (allBrUse)
                     break;
@@ -721,30 +720,33 @@ public class ArmWriter {
             }
             case Br: {
                 BrInst brInst = (BrInst) instr;
-                if (!(brInst.getJudVal() instanceof BinaryInst)) {
-                    throw new RuntimeException("Branch condition must be a cmp op");
+                if (brInst.getJudVal() != null) {
+                    // Conditional branch
+                    if (!(brInst.getJudVal() instanceof BinaryInst)) {
+                        throw new RuntimeException("Branch condition must be a cmp op");
+                    }
+                    BinaryInst cond = (BinaryInst) brInst.getJudVal();
+                    String condTag = getCondTagStr(cond.getOp());
+                    printCmpInstr(cond);
+                    printAArch64Instr("b." + condTag, List.of(getLabel(brInst.getTrueBlock())));
+                    printAArch64Instr("b", List.of(getLabel(brInst.getFalseBlock())));
+                } else {
+                    // Unconditional jump
+                    printAArch64Instr("b", List.of(getLabel(brInst.getJumpBlock())));
                 }
-                BinaryInst cond = (BinaryInst) brInst.getJudVal();
-                String condTag = getCondTagStr(cond.getOp());
-                printCmpInstr(cond);
-                printAArch64Instr("b." + condTag, List.of(getLabel(brInst.getTrueBlock())));
-                printAArch64Instr("b", List.of(getLabel(brInst.getFalseBlock())));
                 break;
             }
-            case Jmp:
-                JmpInst jumpInst = (JmpInst) instr;
-                printAArch64Instr("b", List.of(getLabel(jumpInst.getJumpBlock())));
-                break;
             case Ret: {
                 RetInst retInst = (RetInst) instr;
-                if (retInst.getNumOperands() == 1) {
-                    if (retInst.getRetVal().getType().isIntegerTy()) {
+                if (!retInst.getOperands().isEmpty()) {
+                    Value retVal = retInst.getValue();
+                    if (retVal.getType().isIntegerTy()) {
                         try (Reg regRet = regAlloc.claimIntReg(0)) {  // x0 for return value
-                            assignToSpecificReg(regRet, retInst.getRetVal());
+                            assignToSpecificReg(regRet, retVal);
                         }
-                    } else {
+                    } else if (retVal.getType().isFloatTy()) {
                         try (Reg regRet = regAlloc.claimFloatReg(0)) { // d0 for float return value
-                            assignToSpecificReg(regRet, retInst.getRetVal());
+                            assignToSpecificReg(regRet, retVal);
                         }
                     }
                 }
