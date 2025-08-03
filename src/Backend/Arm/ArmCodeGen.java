@@ -801,12 +801,13 @@ public class ArmCodeGen {
             System.out.println("[parseIcmp] 生成 cmp 指令: " + leftOp + " 与 " + rightOp);
         }
 
-        // 条件赋值，AArch64 标准：先赋0（反条件），再赋1（条件成立）
+        // 条件赋值，AArch64 标准：使用 CSET 指令进行条件设置
         ArmReg reg = getNewIntReg();
         assert type != null;
-        addInstr(new ArmLi(new ArmImm(0), reg, ArmTools.getRevCondType(type)), insList, predefine);
-        addInstr(new ArmLi(new ArmImm(1), reg, type), insList, predefine);
-        System.out.println("[parseIcmp] 条件赋值: " + reg + "，条件类型: " + type);
+        
+        // AArch64: 使用 CSET 指令，相当于 if (condition) reg = 1; else reg = 0;
+        addInstr(new ArmCset(reg, type), insList, predefine);
+        System.out.println("[parseIcmp] 使用 CSET 指令进行条件赋值: " + reg + "，条件类型: " + type);
 
         // 保存结果寄存器
         value2Reg.put(binaryInst, reg);

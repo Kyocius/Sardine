@@ -40,22 +40,22 @@ public class Driver {
             useValueChecker.check(irModule, "value_check_front");
         }
 
-        PassManager passManager = PassManager.getInstance();
-        passManager.runIRPasses(irModule);
-        if (!Config.noDump) {
-            blockChecker.check(irModule, "block_check_pass");
-            useValueChecker.check(irModule, "value_check_pass");
-        }
-
-        if (!Config.noDump) {
-            IRDump.DumpModule(irModule, "_afterIr");
-        }
-        if (!Config.noDump && !Config.parallelOpen) {
-            LLVMIRDump.LLVMDumpModule(irModule);
-        }
-
-        passManager.runMirPasses(irModule);
-        if (!Config.noDump) IRDump.DumpModule(irModule,"_afterMir");
+//        PassManager passManager = PassManager.getInstance();
+//        passManager.runIRPasses(irModule);
+//        if (!Config.noDump) {
+//            blockChecker.check(irModule, "block_check_pass");
+//            useValueChecker.check(irModule, "value_check_pass");
+//        }
+//
+//        if (!Config.noDump) {
+//            IRDump.DumpModule(irModule, "_afterIr");
+//        }
+//        if (!Config.noDump && !Config.parallelOpen) {
+//            LLVMIRDump.LLVMDumpModule(irModule);
+//        }
+//
+//        passManager.runMirPasses(irModule);
+//        if (!Config.noDump) IRDump.DumpModule(irModule,"_afterMir");
 
         if (Config.armBackend){
             ArmCodeGen armCodeGen = new ArmCodeGen(irModule);
