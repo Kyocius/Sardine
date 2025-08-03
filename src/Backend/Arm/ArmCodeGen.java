@@ -1807,19 +1807,26 @@ public class ArmCodeGen {
                 otherCur++;
             }
         }
-        //use a callee saved Register
-        ArmReg regUp = ArmCPUReg.getArmCPUReg(4);
-        ArmLi ins1 = new ArmLi(new ArmStackFixer(curArmFunction, 0), regUp);
-        addInstr(ins1, insList, predefine);
-        ArmBinary ins2 = new ArmBinary(new ArrayList<>(
-                Arrays.asList(ArmCPUReg.getArmSpReg(), regUp)),
-                ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.sub);
-        addInstr(ins2, insList, predefine);
-        addInstr(call, insList, predefine);
-        ArmBinary ins3 = new ArmBinary(new ArrayList<>(
-                Arrays.asList(ArmCPUReg.getArmSpReg(), regUp)),
-                ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.add);
-        addInstr(ins3, insList, predefine);
+        
+        // 只有在有栈参数时才进行栈调整
+        if (stackCur > 0) {
+            //use a callee saved Register for stack adjustment
+            ArmReg regUp = ArmCPUReg.getArmCPUReg(4);
+            ArmLi ins1 = new ArmLi(new ArmStackFixer(curArmFunction, 0), regUp);
+            addInstr(ins1, insList, predefine);
+            ArmBinary ins2 = new ArmBinary(new ArrayList<>(
+                    Arrays.asList(ArmCPUReg.getArmSpReg(), regUp)),
+                    ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.sub);
+            addInstr(ins2, insList, predefine);
+            addInstr(call, insList, predefine);
+            ArmBinary ins3 = new ArmBinary(new ArrayList<>(
+                    Arrays.asList(ArmCPUReg.getArmSpReg(), regUp)),
+                    ArmCPUReg.getArmSpReg(), ArmBinary.ArmBinaryType.add);
+            addInstr(ins3, insList, predefine);
+        } else {
+            // 没有栈参数，直接调用函数
+            addInstr(call, insList, predefine);
+        }
 
         if (callInst.getFunction().getType().isFloatTy()) {
             ArmVirReg resReg = getResReg(callInst, ArmVirReg.RegType.floatType);
