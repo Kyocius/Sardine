@@ -93,8 +93,14 @@ public class Lexer {
         boolean isHex = false;
         boolean isOct = false;
 
+        // 处理以小数点开头的浮点数（如 .0, .5, .AP-3）
+        if (currentChar == '.') {
+            isFloat = true;
+            numBuilder.append(currentChar);
+            readChar();
+        }
         // 判断八进制
-        if (currentChar == '0') {
+        else if (currentChar == '0') {
             numBuilder.append(currentChar);
             readChar();
             if (currentChar == 'x' || currentChar == 'X') {
@@ -103,8 +109,11 @@ public class Lexer {
                 readChar();
             } else if (isNumber(currentChar)) {
                 isOct = true;
+                // 不要在这里readChar()，让while循环处理
             } else if (currentChar == '.') {
                 isFloat = true;
+                numBuilder.append(currentChar);
+                readChar();
             } else {
                 inputReader.unread(currentChar);
                 String num = numBuilder.toString();
@@ -137,6 +146,25 @@ public class Lexer {
             } else if (isOct) {
                 if (currentChar >= '0' && currentChar <= '7') {
                     numBuilder.append(currentChar);
+                } else if (currentChar == '.') {
+                    // 八进制数字后面有小数点，转换为浮点数
+                    isFloat = true;
+                    numBuilder.append(currentChar);
+                } else if (currentChar == 'e' || currentChar == 'E') {
+                    // 八进制数字后面有科学计数法，转换为浮点数
+                    isFloat = true;
+                    numBuilder.append(currentChar);
+                } else if (currentChar == '8' || currentChar == '9') {
+                    // 遇到8或9，说明这不是八进制数，转换为十进制处理
+                    isOct = false;
+                    numBuilder.append(currentChar);
+                } else if ((currentChar == '+' || currentChar == '-') && numBuilder.length() > 0) {
+                    char last = numBuilder.charAt(numBuilder.length() - 1);
+                    if (last == 'e' || last == 'E') {
+                        numBuilder.append(currentChar);
+                    } else {
+                        break;
+                    }
                 } else {
                     break;
                 }
@@ -169,8 +197,8 @@ public class Lexer {
 
         if (isHex && isFloat) return new Token(TokenType.HEXFCON, num);
         if (isHex) return new Token(TokenType.HEXCON, num);
+        if (isFloat) return new Token(TokenType.DECFCON, num);  // 浮点数优先
         if (isOct) return new Token(TokenType.OCTCON, num);
-        if (isFloat) return new Token(TokenType.DECFCON, num);
         return new Token(TokenType.DECCON, num);
     }
 
