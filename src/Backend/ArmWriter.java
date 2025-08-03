@@ -17,12 +17,12 @@ public class ArmWriter {
 
     private String getCondTagStr(OP tag) {
         return switch (tag) {
-            case Eq -> "eq";
-            case Ne -> "ne";
-            case Lt -> "lt";
-            case Le -> "le";
-            case Gt -> "gt";
-            case Ge -> "ge";
+            case Eq, FEq -> "eq";
+            case Ne, FNe -> "ne";
+            case Lt, FLt -> "lt";
+            case Le, FLe -> "le";
+            case Gt, FGt -> "gt";
+            case Ge, FGe -> "ge";
             default -> throw new RuntimeException("Invalid tag");
         };
     }
