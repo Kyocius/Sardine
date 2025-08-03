@@ -118,6 +118,7 @@ public class ArmWriter {
             if (isFloat) {
                 return "d" + id;  // AArch64: d0-d31 for double precision
             } else {
+                if (id == 29) return "fp"; // AArch64: x29 is frame pointer
                 if (id == 30) return "lr";
                 if (id == 31) return "sp";
                 return "x" + id;  // AArch64: x0-x30 for 64-bit, w0-w30 for 32-bit
@@ -129,6 +130,7 @@ public class ArmWriter {
             if (isFloat) {
                 return "s" + id;  // AArch64: s0-s31 for single precision
             } else {
+                if (id == 29) return "fp"; // AArch64: x29 is frame pointer
                 if (id == 30) return "lr";
                 if (id == 31) return "sp";
                 return "w" + id;  // AArch64: w0-w30 for 32-bit integers
