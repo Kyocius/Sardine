@@ -9,7 +9,7 @@ import Frontend.Parser;
 import Frontend.TokenList;
 import IR.IRModule;
 import IR.Visitor;
-import Pass.PassManager;
+//import Pass.PassManager;
 import Utils.BlockChecker;
 import Utils.IRDump;
 import Utils.LLVMIRDump;
@@ -36,23 +36,6 @@ public class Driver {
             blockChecker.check(irModule, "block_check_front");
             useValueChecker.check(irModule, "value_check_front");
         }
-
-//        PassManager passManager = PassManager.getInstance();
-//        passManager.runIRPasses(irModule);
-//        if (!Config.noDump) {
-//            blockChecker.check(irModule, "block_check_pass");
-//            useValueChecker.check(irModule, "value_check_pass");
-//        }
-//
-//        if (!Config.noDump) {
-//            IRDump.DumpModule(irModule, "_afterIr");
-//        }
-//        if (!Config.noDump && !Config.parallelOpen) {
-//            LLVMIRDump.LLVMDumpModule(irModule);
-//        }
-//
-//        passManager.runMirPasses(irModule);
-//        if (!Config.noDump) IRDump.DumpModule(irModule,"_afterMir");
 
         if (Config.armBackend){
             try {
