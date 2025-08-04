@@ -332,7 +332,8 @@ class QEMUARMv8TestRunner:
                 )
 
                 # 拼接实际输出：stdout + "\n" + return_code
-                actual_output = actual_stdout.rstrip() + "\n" + str(return_code)
+                # 注意：不要使用rstrip()，因为会移除末尾的重要空格
+                actual_output = actual_stdout.rstrip("\n") + "\n" + str(return_code)
                 result["actual_output"] = actual_output
 
                 # 5. 比较输出
