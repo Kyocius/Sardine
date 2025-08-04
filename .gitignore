@@ -5,6 +5,6 @@
 *.sy
 *.class
 
+/testcases/
 /tests_old/
 /scripts/results
-/testcases/
