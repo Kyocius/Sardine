@@ -145,6 +145,17 @@ public class ArmWriter {
             }
         }
 
+        public Reg allocIntRegExcept(int excludeReg) {
+            // 分配除了excludeReg之外的寄存器
+            for (int reg : intRegs) {
+                if (reg != excludeReg) {
+                    intRegs.remove(reg);
+                    return new Reg(false, reg, this);
+                }
+            }
+            throw new RuntimeException("Reg Limit Exceeded");
+        }
+
         public Reg allocFloatReg() {
             if (!fltRegs.isEmpty()) {
                 int allocated = fltRegs.iterator().next();
@@ -896,17 +907,33 @@ public class ArmWriter {
                     if (stackSize <= 4095) {
                         printAArch64Instr("add", Arrays.asList("sp", "sp", "#" + stackSize));
                     } else {
-                        // For large stack sizes, use register
-                        try (Reg regTemp = regAlloc.allocIntReg()) {
-                            if (stackSize <= 65535) {
-                                printAArch64Instr("mov", Arrays.asList(regTemp.abiName(), "#" + stackSize));
-                            } else {
-                                printAArch64Instr("movz", Arrays.asList(regTemp.abiName(), "#" + (stackSize & 0xffff)));
-                                if ((stackSize >> 16) != 0) {
-                                    printAArch64Instr("movk", Arrays.asList(regTemp.abiName(), "#" + ((stackSize >> 16) & 0xffff), "lsl #16"));
+                        // For large stack sizes, use register (avoid x0 if it contains return value)
+                        if (!retInst.getOperands().isEmpty()) {
+                            // 有返回值时，避免使用x0寄存器
+                            try (Reg regTemp = regAlloc.allocIntRegExcept(0)) {
+                                if (stackSize <= 65535) {
+                                    printAArch64Instr("mov", Arrays.asList(regTemp.abiName(), "#" + stackSize));
+                                } else {
+                                    printAArch64Instr("movz", Arrays.asList(regTemp.abiName(), "#" + (stackSize & 0xffff)));
+                                    if ((stackSize >> 16) != 0) {
+                                        printAArch64Instr("movk", Arrays.asList(regTemp.abiName(), "#" + ((stackSize >> 16) & 0xffff), "lsl #16"));
+                                    }
                                 }
+                                printAArch64Instr("add", Arrays.asList("sp", "sp", regTemp.abiName()));
                             }
-                            printAArch64Instr("add", Arrays.asList("sp", "sp", regTemp.abiName()));
+                        } else {
+                            // 无返回值时，可以使用任意寄存器
+                            try (Reg regTemp = regAlloc.allocIntReg()) {
+                                if (stackSize <= 65535) {
+                                    printAArch64Instr("mov", Arrays.asList(regTemp.abiName(), "#" + stackSize));
+                                } else {
+                                    printAArch64Instr("movz", Arrays.asList(regTemp.abiName(), "#" + (stackSize & 0xffff)));
+                                    if ((stackSize >> 16) != 0) {
+                                        printAArch64Instr("movk", Arrays.asList(regTemp.abiName(), "#" + ((stackSize >> 16) & 0xffff), "lsl #16"));
+                                    }
+                                }
+                                printAArch64Instr("add", Arrays.asList("sp", "sp", regTemp.abiName()));
+                            }
                         }
                     }
                 }
