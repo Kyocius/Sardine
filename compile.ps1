@@ -157,8 +157,9 @@ function Test-CompileResult {
 
 # 主编译流程
 function Main {
-    Write-Host "Tensei 编译器构建脚本" -ForegroundColor Cyan
-    Write-Host "=" * 50 -ForegroundColor Gray
+    Write-Host "Sardine 编译器构建脚本" -ForegroundColor Cyan
+    Write-Host ""  # 输出一个空行
+    Write-Host ("=" * 50) -ForegroundColor Gray
     
     # 检查 Java 环境
     if (!(Test-JavaInstallation)) {
@@ -182,7 +183,8 @@ function Main {
         exit 1
     }
     
-    Write-Host "`n" + "=" * 50 -ForegroundColor Gray
+    Write-Host ""  # 输出一个空行
+    Write-Host ("=" * 50) -ForegroundColor Gray
     Write-Status "编译完成!" "SUCCESS" "Green"
 }
 

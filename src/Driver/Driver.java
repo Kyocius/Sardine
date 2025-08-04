@@ -52,7 +52,8 @@ public class Driver {
     }
 
     private void parseArgs(String[] args){
-        for(String arg : args){
+        for(int i = 0; i < args.length; i++){
+            String arg = args[i];
             if(arg.equals("-debug")) {
                 Config.outputReturn = true;
                 Config.outputNoAlloc = true;
@@ -68,6 +69,16 @@ public class Driver {
             }
             else if(arg.equals("-O1")) {
                 Config.isO1 = true;
+            }
+            else if(arg.equals("-S")) {
+                // 输出汇编文件，这是默认行为，无需特殊处理
+            }
+            else if(arg.equals("-o")) {
+                // 下一个参数是输出文件名
+                if(i + 1 < args.length) {
+                    Config.outputFile = args[i + 1];
+                    i++; // 跳过下一个参数，因为已经处理了
+                }
             }
             else if(arg.contains(".s") && !arg.contains(".sy")){
                 Config.outputFile = arg;
