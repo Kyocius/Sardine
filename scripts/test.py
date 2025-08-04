@@ -20,11 +20,12 @@ class QEMUARMv8TestRunner:
         self.project_root = Path(__file__).parent.parent
 
         # 测试用例目录
-        # self.testcases_dir = self.project_root / "testcases" / "single"
-        self.testcases_dir = self.project_root / "testcases" / "functional"
+        self.testcases_dir = self.project_root / "testcases" / "single"
+        # self.testcases_dir = self.project_root / "testcases" / "functional"
 
         # 结果输出目录
-        self.results_dir = self.project_root / "scripts" / "results"
+        # self.results_dir = self.project_root / "scripts" / "results"
+        self.results_dir = self.project_root / "results"
         self.results_dir.mkdir(exist_ok=True)
 
         # Java编译器classpath (Windows使用分号分隔)
