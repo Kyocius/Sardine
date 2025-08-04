@@ -61,8 +61,8 @@ function Build-JavaSources {
     
     # 获取所有 Java 源文件
     $sourceFiles = @()
-    $sourceFiles += Get-ChildItem -Path "src" -Filter "*.java" -Recurse | ForEach-Object { $_.FullName }
-    $sourceFiles += Get-ChildItem -Path "frontend" -Filter "*.java" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+    $sourceFiles += Get-ChildItem -Path "..\src" -Filter "*.java" -Recurse | ForEach-Object { $_.FullName }
+    $sourceFiles += Get-ChildItem -Path "..\frontend" -Filter "*.java" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
     
     if ($sourceFiles.Count -eq 0) {
         Write-Status "未找到 Java 源文件" "ERROR" "Red"
@@ -75,15 +75,15 @@ function Build-JavaSources {
     # $classpath = ".;lib\antlr4-runtime-4.13.1.jar;lib\argparse4j-0.9.0.jar"
     
     # 创建 out 目录（如果不存在）
-    if (!(Test-Path "out")) {
-        New-Item -ItemType Directory -Path "out" -Force | Out-Null
-        Write-Status "创建输出目录: out" "INFO" "Green"
+    if (!(Test-Path "..\out")) {
+        New-Item -ItemType Directory -Path "..\out" -Force | Out-Null
+        Write-Status "创建输出目录: ..\out" "INFO" "Green"
     }
     
     # 编译命令
     $compileArgs = @(
         #"-cp", $classpath,
-        "-d", "out",
+        "-d", "..\out",
         "-encoding", "UTF-8"
     )
     $compileArgs += $sourceFiles
@@ -94,14 +94,14 @@ function Build-JavaSources {
     }
     
     try {
-        $process = Start-Process -FilePath "javac" -ArgumentList $compileArgs -Wait -PassThru -RedirectStandardError "javac_stderr.txt" -RedirectStandardOutput "javac_stdout.txt"
+        $process = Start-Process -FilePath "javac" -ArgumentList $compileArgs -Wait -PassThru -WindowStyle Hidden -RedirectStandardError "javac_stderr.txt" -RedirectStandardOutput "javac_stdout.txt"
         
         if ($process.ExitCode -eq 0) {
             Write-Status "Java 编译成功" "INFO" "Green"
             
             # 检查是否生成了主类文件
-            if (Test-Path "out\Compiler.class") {
-                Write-Status "主编译器类已生成: out\Compiler.class" "INFO" "Green"
+            if (Test-Path "..\out\Compiler.class") {
+                Write-Status "主编译器类已生成: ..\out\Compiler.class" "INFO" "Green"
             }
             
             return $true
@@ -133,8 +133,8 @@ function Test-CompileResult {
     
     # 检查主要的类文件是否存在
     $requiredClasses = @(
-        "out\Compiler.class",
-        "out\Driver\Driver.class"
+        "..\out\Compiler.class",
+        "..\out\Driver\Driver.class"
     )
     
     $missingClasses = @()
