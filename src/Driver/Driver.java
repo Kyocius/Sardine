@@ -1,23 +1,15 @@
 package Driver;
 
-//import Backend.Arm.tools.BackendPeepHole;
-//import Backend.Arm.tools.RegisterAllocator;
-
 import Frontend.AST;
 import Frontend.Lexer;
 import Frontend.Parser;
 import Frontend.TokenList;
 import IR.IRModule;
 import IR.Visitor;
-//import Pass.PassManager;
 import Utils.BlockChecker;
 import Utils.IRDump;
 import Utils.LLVMIRDump;
 import Utils.UseValueChecker;
-//import Backend.Arm.ArmCodeGen;
-
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 
 public class Driver {
@@ -87,10 +79,6 @@ public class Driver {
                 Config.inputFile = arg;
             } else if (arg.equals("-arm")) {
                 Config.armBackend = true;
-                Config.riscvBackend = false;
-            } else if (arg.equals("-riscv")) {
-                Config.riscvBackend = true;
-                Config.armBackend = false;
             }
         }
     }
