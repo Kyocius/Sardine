@@ -5,10 +5,42 @@ import java.util.Objects;
 
 public record AST(ArrayList<CompUnit> units) {
 
+    public AST(ArrayList<CompUnit> units) {
+        this.units = Objects.requireNonNull(units);
+    }
+
     // CompUnit -> Decl | FuncDef
     public sealed
-
     interface CompUnit permits Decl, FuncDef {
+    }
+
+    // Init -> Exp | InitArray
+    public sealed
+    interface Init permits Exp, InitArray {
+    }
+
+    // BlockItem -> Decl | Stmt
+    public sealed
+    interface BlockItem permits Decl, Stmt {
+    }
+
+    // Stmt -> Assign | ExpStmt | Block | IfStmt | WhileStmt | Break | Continue | Return
+    public sealed
+    interface Stmt extends BlockItem
+            permits Assign, ExpStmt, Block, IfStmt, WhileStmt, Break, Continue, Return {
+    }
+
+    // PrimaryExp -> Call | '(' Exp ')' | LVal | Number
+    // Init -> Exp | InitArray
+    // Exp -> BinaryExp | UnaryExp
+    public sealed
+    interface Exp extends Init, PrimaryExp
+            permits BinaryExp, UnaryExp {
+    }
+
+    // PrimaryExp -> Call | '(' Exp ')' | LVal | Number
+    public sealed
+    interface PrimaryExp permits BinaryExp, Call, Exp, LVal, Number, UnaryExp {
     }
 
     // Decl -> ['const'] 'int' Def {',' Def} ';'
@@ -34,12 +66,6 @@ public record AST(ArrayList<CompUnit> units) {
         }
     }
 
-    // Init -> Exp | InitArray
-    public sealed
-
-    interface Init permits Exp, InitArray {
-    }
-
     // InitArray -> '{' [ Init { ',' Init } ] '}'
     public static final class InitArray implements Init {
         public final ArrayList<Init> init;
@@ -62,102 +88,89 @@ public record AST(ArrayList<CompUnit> units) {
      * @param type  FuncType
      * @param ident name
      */ // FuncDef -> FuncType Ident '(' [FuncFParams] ')' Block
-        // FuncFParams -> FuncFParam {',' FuncFParam}
-        public record FuncDef(String type, String ident, ArrayList<FuncFParam> fParams, Block body) implements CompUnit {
+    // FuncFParams -> FuncFParam {',' FuncFParam}
+    public record FuncDef(String type, String ident, ArrayList<FuncFParam> fParams, Block body) implements CompUnit {
 
-            public FuncDef(String type, String ident, ArrayList<FuncFParam> fParams, Block body) {
-                this.type = Objects.requireNonNull(type);
-                this.ident = Objects.requireNonNull(ident);
-                this.fParams = Objects.requireNonNull(fParams);
-                this.body = Objects.requireNonNull(body);
-            }
-
-            public ArrayList<FuncFParam> getFParams() {
-                return this.fParams;
-            }
+        public FuncDef(String type, String ident, ArrayList<FuncFParam> fParams, Block body) {
+            this.type = Objects.requireNonNull(type);
+            this.ident = Objects.requireNonNull(ident);
+            this.fParams = Objects.requireNonNull(fParams);
+            this.body = Objects.requireNonNull(body);
         }
+
+        public ArrayList<FuncFParam> getFParams() {
+            return this.fParams;
+        }
+    }
 
     /**
      * @param array whether it is an array
      * @param sizes array sizes of each dim
      */ // FuncFParam -> BType Ident ['[' ']' { '[' Exp ']' }]
-        public record FuncFParam(String bType, String ident, boolean array, ArrayList<Exp> sizes) {
+    public record FuncFParam(String bType, String ident, boolean array, ArrayList<Exp> sizes) {
 
-            public FuncFParam(String bType, String ident, boolean array, ArrayList<Exp> sizes) {
-                this.bType = Objects.requireNonNull(bType);
-                this.ident = Objects.requireNonNull(ident);
-                this.array = array;
-                this.sizes = Objects.requireNonNull(sizes);
-            }
-
-            public String getBType() {
-                return this.bType;
-            }
+        public FuncFParam(String bType, String ident, boolean array, ArrayList<Exp> sizes) {
+            this.bType = Objects.requireNonNull(bType);
+            this.ident = Objects.requireNonNull(ident);
+            this.array = array;
+            this.sizes = Objects.requireNonNull(sizes);
         }
 
-    // Block
-        public record Block(ArrayList<BlockItem> items) implements Stmt {
-
-            public Block(ArrayList<BlockItem> items) {
-                this.items = Objects.requireNonNull(items);
-            }
+        public String getBType() {
+            return this.bType;
         }
-
-    // BlockItem -> Decl | Stmt
-    public sealed
-
-    interface BlockItem permits Decl, Stmt {
     }
 
-    // Stmt -> Assign | ExpStmt | Block | IfStmt | WhileStmt | Break | Continue | Return
-    public sealed
+    // Block
+    public record Block(ArrayList<BlockItem> items) implements Stmt {
 
-    interface Stmt extends BlockItem
-            permits Assign, ExpStmt, Block, IfStmt, WhileStmt, Break, Continue, Return {
+        public Block(ArrayList<BlockItem> items) {
+            this.items = Objects.requireNonNull(items);
+        }
     }
 
     // Assign
-        public record Assign(LVal left, Exp right) implements Stmt {
+    public record Assign(LVal left, Exp right) implements Stmt {
 
-            public Assign(LVal left, Exp right) {
-                this.left = Objects.requireNonNull(left);
-                this.right = Objects.requireNonNull(right);
-            }
-
-            public LVal getLVal() {
-                return this.left;
-            }
-
-            public Exp getValue() {
-                return this.right;
-            }
+        public Assign(LVal left, Exp right) {
+            this.left = Objects.requireNonNull(left);
+            this.right = Objects.requireNonNull(right);
         }
+
+        public LVal getLVal() {
+            return this.left;
+        }
+
+        public Exp getValue() {
+            return this.right;
+        }
+    }
 
     /**
      * @param exp nullable, empty stmt if null
      */ // ExpStmt
-        public record ExpStmt(Exp exp) implements Stmt {
+    public record ExpStmt(Exp exp) implements Stmt {
         // 可以为null
     }
 
     // IfStmt
-        public record IfStmt(Exp cond, Stmt thenTarget, Stmt elseTarget) implements Stmt {
+    public record IfStmt(Exp cond, Stmt thenTarget, Stmt elseTarget) implements Stmt {
 
-            public IfStmt(Exp cond, Stmt thenTarget, Stmt elseTarget) {
-                this.cond = Objects.requireNonNull(cond);
-                this.thenTarget = Objects.requireNonNull(thenTarget);
-                this.elseTarget = elseTarget; // 可以为null
-            }
+        public IfStmt(Exp cond, Stmt thenTarget, Stmt elseTarget) {
+            this.cond = Objects.requireNonNull(cond);
+            this.thenTarget = Objects.requireNonNull(thenTarget);
+            this.elseTarget = elseTarget; // 可以为null
         }
+    }
 
     // WhileStmt
-        public record WhileStmt(Exp cond, Stmt body) implements Stmt {
+    public record WhileStmt(Exp cond, Stmt body) implements Stmt {
 
-            public WhileStmt(Exp cond, Stmt body) {
-                this.cond = Objects.requireNonNull(cond);
-                this.body = Objects.requireNonNull(body);
-            }
+        public WhileStmt(Exp cond, Stmt body) {
+            this.cond = Objects.requireNonNull(cond);
+            this.body = Objects.requireNonNull(body);
         }
+    }
 
     // Break
     public static final class Break implements Stmt {
@@ -172,47 +185,32 @@ public record AST(ArrayList<CompUnit> units) {
     }
 
     // Return
-        public record Return(Exp value) implements Stmt {
+    public record Return(Exp value) implements Stmt {
         // 可以为null
 
         public Exp getRetExp() {
-                return this.value;
-            }
+            return this.value;
         }
-
-    // PrimaryExp -> Call | '(' Exp ')' | LVal | Number
-    // Init -> Exp | InitArray
-    // Exp -> BinaryExp | UnaryExp
-    public sealed
-
-    interface Exp extends Init, PrimaryExp
-            permits BinaryExp, UnaryExp {
     }
 
     // BinaryExp: Arithmetic, Relation, Logical
-        // BinaryExp -> Exp { Op Exp }, calc from left to right
-        public record BinaryExp(Exp first, ArrayList<String> operators, ArrayList<Exp> follows) implements Exp, PrimaryExp {
+    // BinaryExp -> Exp { Op Exp }, calc from left to right
+    public record BinaryExp(Exp first, ArrayList<String> operators, ArrayList<Exp> follows) implements Exp, PrimaryExp {
 
-            public BinaryExp(Exp first, ArrayList<String> operators, ArrayList<Exp> follows) {
-                this.first = Objects.requireNonNull(first);
-                this.operators = Objects.requireNonNull(operators);
-                this.follows = Objects.requireNonNull(follows);
-            }
+        public BinaryExp(Exp first, ArrayList<String> operators, ArrayList<Exp> follows) {
+            this.first = Objects.requireNonNull(first);
+            this.operators = Objects.requireNonNull(operators);
+            this.follows = Objects.requireNonNull(follows);
         }
+    }
 
     // UnaryExp -> {UnaryOp} PrimaryExp
-        public record UnaryExp(ArrayList<String> unaryOps, PrimaryExp primary) implements Exp, PrimaryExp {
+    public record UnaryExp(ArrayList<String> unaryOps, PrimaryExp primary) implements Exp, PrimaryExp {
 
-            public UnaryExp(ArrayList<String> unaryOps, PrimaryExp primary) {
-                this.unaryOps = Objects.requireNonNull(unaryOps);
-                this.primary = Objects.requireNonNull(primary);
-            }
+        public UnaryExp(ArrayList<String> unaryOps, PrimaryExp primary) {
+            this.unaryOps = Objects.requireNonNull(unaryOps);
+            this.primary = Objects.requireNonNull(primary);
         }
-
-    // PrimaryExp -> Call | '(' Exp ')' | LVal | Number
-    public sealed
-
-    interface PrimaryExp permits BinaryExp, Call, Exp, LVal, Number, UnaryExp {
     }
 
     // LVal -> Ident {'[' Exp ']'}
@@ -315,9 +313,5 @@ public record AST(ArrayList<CompUnit> units) {
         public void setLineno(int lineno) {
             this.lineno = lineno;
         }
-    }
-
-    public AST(ArrayList<CompUnit> units) {
-        this.units = Objects.requireNonNull(units);
     }
 }

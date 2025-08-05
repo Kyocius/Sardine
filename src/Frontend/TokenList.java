@@ -29,7 +29,7 @@ public class TokenList {
         return tokens.get(index++);
     }
 
-    // 用于消费指定类型的Token，支持多个类型
+    /** 用于消费指定类型的Token，支持多个类型 */
     public Token consume(TokenType... types) {
         if (index >= tokens.size()) return null;
         Token token = tokens.get(index);
@@ -40,7 +40,7 @@ public class TokenList {
         return null;
     }
 
-    // 用于消费指定类型的Token，单一类型
+    /** 用于消费指定类型的Token，只支持单个类型 */
     public Token consume(TokenType type) {
         return consume(new TokenType[]{type});
     }

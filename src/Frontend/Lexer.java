@@ -75,7 +75,7 @@ public class Lexer {
         return new Token(TokenType.STRCON, sb.toString());
     }
 
-    /*
+    /**
     * 产生整数/浮点数Token
     * Dec浮点数定义：
     * 1. [digit-seq].digit-seq [e+/-digit-seq]
