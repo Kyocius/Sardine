@@ -3,9 +3,9 @@ package Utils.DataStruct;
 
 import java.util.Iterator;
 
-//  采用自己定义的双向链表，是因为java内部的双向链表为了安全性，
-//  会有很多限制(如checkModified等等，因此我们自己定义IList)
-//  INode表示链表中的每个节点，IList表示链表(N和L自然对应节点和链表的Type)
+/** 该类实现了一个自定义的双向链表结构，目的是规避 Java 标准库中 LinkedList 为保证安全性而引入的多种限制（如 fail-fast 机制、结构修改检查等）。
+ IList 表示链表本身，INode 表示链表中的节点。泛型参数 N 代表节点存储的数据类型，L 代表链表的附加属性类型。
+ 该实现支持链表头尾插入、节点插入与删除、索引更新、链表合并等操作。 */
 public class IList<N, L> implements Iterable<IList.INode<N, L>> {
     private INode<N, L> head;
     private INode<N, L> tail;

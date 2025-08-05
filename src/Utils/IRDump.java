@@ -72,18 +72,28 @@ public class IRDump {
         DumpModule(irModule, "");
     }
 
+    /**
+     * 将 IRModule 的内容导出到指定后缀的文本文件中。
+     * @param irModule 要导出的 IRModule 实例
+     * @param suffix 文件名后缀
+     * @throws IOException 文件写入异常
+     */
     public static void DumpModule(IRModule irModule, String suffix) throws IOException {
+        // 创建输出文件的 BufferedWriter
         out = new BufferedWriter(new FileWriter(Config.iroutFile + suffix + ".txt"));
         ArrayList<GlobalVar> globalVars = irModule.globalVars();
+        // 导出所有全局变量
         for (GlobalVar globalVar : globalVars) {
             DumpGlobalVar(globalVar);
         }
 
         ArrayList<Function> functions = irModule.functions();
+        // 导出所有函数
         for (Function function : functions) {
             DumpFunction(function);
             out.write("\n");
         }
+        // 关闭输出流
         out.close();
     }
 

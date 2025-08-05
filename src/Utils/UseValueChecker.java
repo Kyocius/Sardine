@@ -32,24 +32,6 @@ public class UseValueChecker {
                 }
             }
         }
-        /*for(Function function: irModule.getFunctions()) {
-            for (IList.INode<BasicBlock, Function> basicBlockFunctionINode : function.getBbs()) {
-                BasicBlock block = basicBlockFunctionINode.getValue();
-                out.write(block.toLLVMString() + " block user\n");
-                for(User user: block.getUserList()) {
-                    out.write(user.toLLVMString() + '\n');
-                }
-                out.write('\n');
-                for(IList.INode<Instruction, BasicBlock> instructionBasicBlockINode: block.getInsts()) {
-                    Instruction ins = instructionBasicBlockINode.getValue();
-                    out.write(ins.toLLVMString() + " print user \n");
-                    for(User user: ins.getUserList()) {
-                        out.write(user.toLLVMString() + '\n');
-                    }
-                    out.write('\n');
-                }
-            }
-        }*/
 
         for(Function function: irModule.functions()) {
             checkFunction(function);
