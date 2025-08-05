@@ -3,7 +3,6 @@ package IR.Value;
 import IR.Type.VoidType;
 import IR.Value.Instructions.*;
 import Pass.IR.Utils.IRLoop;
-import Pass.IR.Utils.UtilFunc;
 import Utils.DataStruct.IList;
 
 import java.util.ArrayList;
