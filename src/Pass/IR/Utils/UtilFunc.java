@@ -13,27 +13,37 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 
 public class UtilFunc {
+    /**
+     * 构建指定函数的基本块控制流图（CFG）。
+     * 对每个基本块，计算其前驱和后继基本块，并回写到基本块对象中。
+     * @param function 需要构建CFG的函数
+     */
     public static void makeCFG(Function function){
+        // 前驱和后继基本块映射表
         LinkedHashMap<BasicBlock, ArrayList<BasicBlock>> preMap = new LinkedHashMap<>();
         LinkedHashMap<BasicBlock, ArrayList<BasicBlock>> nxtMap = new LinkedHashMap<>();
 
-        //  初始化前驱后继图
+        // 初始化所有基本块的前驱和后继列表为空
         for(IList.INode<BasicBlock, Function> bbNode : function.getBbs()) {
             BasicBlock bb = bbNode.getValue();
             preMap.put(bb, new ArrayList<>());
             nxtMap.put(bb, new ArrayList<>());
         }
 
+        // 遍历所有基本块，分析最后一条指令，建立前驱和后继关系
         for(IList.INode<BasicBlock, Function> bbNode : function.getBbs()) {
             BasicBlock bb = bbNode.getValue();
             Instruction lastInst = bb.getLastInst();
+            // 只处理分支指令
             if (lastInst instanceof BrInst brInst) {
                 if(brInst.isJump()){
+                    // 跳转分支，只有一个后继
                     BasicBlock jumpBb = brInst.getJumpBlock();
                     nxtMap.get(bb).add(jumpBb);
                     preMap.get(jumpBb).add(bb);
                 }
                 else {
+                    // 条件分支，有两个后继
                     BasicBlock TrueBlock = brInst.getTrueBlock();
                     BasicBlock FalseBlock = brInst.getFalseBlock();
                     nxtMap.get(bb).add(TrueBlock);
@@ -44,7 +54,7 @@ public class UtilFunc {
             }
         }
 
-        //  回写基本块和函数
+        // 回写前驱和后继信息到每个基本块对象
         for(IList.INode<BasicBlock, Function> bbNode : function.getBbs()) {
             BasicBlock bb = bbNode.getValue();
             bb.setPreBlocks(preMap.get(bb));
